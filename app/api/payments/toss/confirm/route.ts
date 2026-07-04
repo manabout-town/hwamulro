@@ -35,6 +35,16 @@ export async function POST(req: NextRequest) {
 
       if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 })
 
+      // BUG-006: 결제 확정은 해당 의뢰의 화주 본인만 (POL-011)
+      if (order.shipper_id !== user.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+
+      // BUG-004: 클라이언트 amount를 서버 확정금액(order.price)과 대조 — 과소결제 방지 (POL-040)
+      if (Number(amount) !== Number(order.price)) {
+        return NextResponse.json({ error: "결제 금액이 의뢰 금액과 일치하지 않습니다" }, { status: 400 })
+      }
+
       const activeMatch = (order.matches as any[])?.find(m => m.status === "accepted")
       if (!activeMatch) return NextResponse.json({ error: "No active match" }, { status: 400 })
 

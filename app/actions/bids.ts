@@ -9,6 +9,11 @@ export async function submitBid(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "로그인이 필요합니다" }
 
+  // BUG-001: 입찰은 KYC 인증된 기사 전용 (POL-010, POL-051)
+  const { data: bidder } = await supabase.from("users").select("role, verification_status").eq("id", user.id).single()
+  if (bidder?.role !== "driver") return { error: "기사만 입찰할 수 있습니다" }
+  if (bidder.verification_status !== "verified") return { error: "KYC 인증 후 입찰할 수 있습니다" }
+
   const orderId = formData.get("orderId") as string
   const price = parseInt(formData.get("price") as string)
   const message = formData.get("message") as string

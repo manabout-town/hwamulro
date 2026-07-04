@@ -53,15 +53,18 @@ export async function middleware(request: NextRequest) {
 
   const { role, verification_status } = profile
 
-  // Redirect logged-in verified users away from auth/landing pages
+  // Redirect logged-in users away from auth/landing pages
   if (path === "/" || path === "/login" || path === "/signup") {
+    if (role === "admin") return NextResponse.redirect(new URL("/admin/dashboard", request.url))
     if (verification_status !== "verified") {
       return NextResponse.redirect(new URL("/verification", request.url))
     }
     if (role === "shipper") return NextResponse.redirect(new URL("/shipper/dashboard", request.url))
     if (role === "driver") return NextResponse.redirect(new URL("/driver/dashboard", request.url))
-    if (role === "admin") return NextResponse.redirect(new URL("/admin/dashboard", request.url))
   }
+
+  // Admin bypasses KYC gate entirely
+  if (role === "admin") return response
 
   // KYC gate — unverified/rejected users must complete verification
   // (Allow: /verification itself, /intro, /profile, API routes, onboarding)
@@ -70,6 +73,18 @@ export async function middleware(request: NextRequest) {
 
   if (!isKycExempt && verification_status !== "verified") {
     return NextResponse.redirect(new URL("/verification", request.url))
+  }
+
+  // BUG-003: 역할별 전용 영역 접근 통제 (POL-010)
+  // 비공개 하위경로만 차단 — /driver/[userId] 프로필·공유경로(chat/review/orders/payment)는 허용
+  const seg = path.split("/").filter(Boolean)
+  const driverPrivate = new Set(["dashboard", "feed", "mypage", "wallet", "orders", "matches", "schedule", "calendar"])
+  const shipperPrivate = new Set(["dashboard", "mypage", "wallet", "orders", "calendar", "drivers"])
+  if (seg[0] === "driver" && driverPrivate.has(seg[1]) && role !== "driver") {
+    return NextResponse.redirect(new URL(role === "shipper" ? "/shipper/dashboard" : "/verification", request.url))
+  }
+  if (seg[0] === "shipper" && shipperPrivate.has(seg[1]) && role !== "shipper") {
+    return NextResponse.redirect(new URL(role === "driver" ? "/driver/dashboard" : "/verification", request.url))
   }
 
   return response

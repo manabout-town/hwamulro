@@ -10,6 +10,10 @@ export async function createOrder(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "로그인이 필요합니다" }
 
+  // BUG-002: 의뢰 등록은 화주 전용 (POL-010)
+  const { data: creator } = await supabase.from("users").select("role").eq("id", user.id).single()
+  if (creator?.role !== "shipper") return { error: "화주만 의뢰를 등록할 수 있습니다" }
+
   const origin = formData.get("origin") as string
   const destination = formData.get("destination") as string
   const vehicleCount = parseInt(formData.get("vehicleCount") as string) || 1
