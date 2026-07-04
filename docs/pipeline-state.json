@@ -26,10 +26,10 @@
   "risks": [
     { "id": "RISK-001", "description": "에스크로 결제/정산 로직 오류 시 실자금 사고", "mitigation": "6단계 QA에서 결제 정상/실패/멱등성/경쟁조건 시나리오 검증", "status": "open" },
     { "id": "RISK-002", "description": "KYC 오탐(false-reject/false-approve)로 미인증 기사 진입 또는 정상 기사 차단", "mitigation": "6단계 경계 시나리오 + 7단계 수동검토 운영 플레이북", "status": "open" },
-    { "id": "RISK-003", "description": "위치정보(GPS) 별도 동의·보관정책 미비 — 위치정보법 위반 소지(법적 필수)", "mitigation": "POL-081: 개인위치정보 별도 동의 UI + 보관/파기 정책 론칭 전 구현", "status": "open" },
+    { "id": "RISK-003", "description": "위치정보(GPS) 별도 동의·보관정책 미비 — 위치정보법 위반 소지(법적 필수)", "mitigation": "완전 시행 완료: 동의 로그(location_consents)+users.location_consent_at, 서버액션 pushDriverLocation(동의+진행중 검증), RLS 직접 upsert 차단, 완료 시 위치 파기. (마이그레이션 014). 마이페이지 철회 UI는 후속", "status": "closed" },
     { "id": "RISK-004", "description": "인가 경계 결함 — 미들웨어 role-영역 미강제(BUG-003), 결제 confirm 클라이언트 amount 미검증(BUG-004)", "mitigation": "BUG-003 미들웨어 role 통제 + BUG-004 amount 서버검증 + BUG-006 소유검증 수정 완료(tsc 통과). 결제 생성부 점검·urgent 소유검증 잔여", "status": "closed" },
     { "id": "RISK-005", "description": "components/admin/DashboardCharts.tsx recharts Formatter 타입 에러 — next build 실패 가능", "mitigation": "formatter 시그니처 수정, tsc --noEmit exit 0 확인", "status": "closed" },
-    { "id": "RISK-006", "description": "결제 승인–에스크로 기록 부분실패 시 돈만 빠지고 미기록(비원자적 confirm) + 탐지수단 부재", "mitigation": "OPS-001: 에러알림 + 일1회 대사 크론 + insert 실패 보상. 개선계획 #1·#2·#9", "status": "open" },
-    { "id": "RISK-007", "description": "관측성 전무 — 에러/결제정합/비용 알림 없음", "mitigation": "에러 트래킹·대사·비용 알림 도입(개선계획 1순위)", "status": "open" }
+    { "id": "RISK-006", "description": "결제 승인–에스크로 기록 부분실패 시 돈만 빠지고 미기록(비원자적 confirm) + 탐지수단 부재", "mitigation": "경량 자체 관측성 구현: payment_attempts(Toss 이전 기록)+escrow insert 에러 감지·로깅, 매시간 reconcile 크론으로 정체건 대사(self-heal/누락검출). 근본 원자화(#9)는 백로그. (마이그레이션 015)", "status": "closed" },
+    { "id": "RISK-007", "description": "관측성 전무 — 에러/결제정합/비용 알림 없음", "mitigation": "error_logs 테이블 + logError 헬퍼 + reconcile 크론 도입. Anthropic 비용 알림은 백로그", "status": "closed" }
   ]
 }

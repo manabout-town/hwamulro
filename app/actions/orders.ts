@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
-import { calculateFee } from "@/lib/utils/format"
 
 export async function createOrder(formData: FormData) {
   const supabase = await createClient()
@@ -143,16 +142,16 @@ export async function confirmCompletion(matchId: string) {
   // escrow 먼저 조회 + 상태 체크 (idempotency guard — payouts_escrow_id_unique 제약과 이중 방어)
   const { data: escrow } = await service
     .from("escrow")
-    .select("id, status")
+    .select("id, status, driver_payout")
     .eq("match_id", matchId)
     .single()
 
-  if (!escrow || escrow.status !== "held") {
-    return { error: "이미 처리된 완료 요청입니다" }
-  }
+  // BUG-011: 미결제(escrow 없음)와 기처리(status != held) 구분
+  if (!escrow) return { error: "아직 결제가 완료되지 않았습니다" }
+  if (escrow.status !== "held") return { error: "이미 처리된 완료 요청입니다" }
 
-  const totalAmount = (match.orders as any)?.price || 0
-  const { driverPayout } = calculateFee(totalAmount)
+  // BUG-005: 정산액은 결제 시 보관된 escrow.driver_payout 사용 (orders.price 재계산 금지)
+  const driverPayout = escrow.driver_payout
 
   await service.from("matches").update({
     status: "completed",
@@ -174,6 +173,9 @@ export async function confirmCompletion(matchId: string) {
   })
 
   await service.rpc("increment_driver_completed_count", { p_driver_id: match.driver_id })
+
+  // POL-081: 거래 완료 시 위치 이력 파기
+  await service.from("driver_locations").delete().eq("match_id", matchId)
 
   revalidatePath(`/chat/${matchId}`)
   redirect(`/review/${matchId}`)

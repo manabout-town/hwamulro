@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { createClient } from "@/lib/supabase/server"
 import { calculateFee } from "@/lib/utils/format"
+import { logError } from "@/lib/utils/observability"
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,6 +49,16 @@ export async function POST(req: NextRequest) {
       const activeMatch = (order.matches as any[])?.find(m => m.status === "accepted")
       if (!activeMatch) return NextResponse.json({ error: "No active match" }, { status: 400 })
 
+      // OPS-001: Toss 승인 '이전'에 결제 시도 기록 → 대사(reconcile)로 escrow 누락 검출 가능
+      await service.from("payment_attempts").upsert({
+        payment_key: paymentKey,
+        order_id: dbOrderId,
+        shipper_id: user.id,
+        type: "escrow",
+        amount,
+        status: "attempted",
+      }, { onConflict: "payment_key" })
+
       // Toss 승인 API 호출
       const encoded = Buffer.from(`${process.env.TOSS_SECRET_KEY}:`).toString("base64")
       const tossRes = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
@@ -61,12 +72,14 @@ export async function POST(req: NextRequest) {
 
       if (!tossRes.ok) {
         const err = await tossRes.json()
+        await service.from("payment_attempts").update({ status: "failed", error: err.message }).eq("payment_key", paymentKey)
         return NextResponse.json({ error: err.message }, { status: 400 })
       }
 
       const { platformFee, driverPayout } = calculateFee(amount)
 
-      await service.from("escrow").insert({
+      // OPS-001: Toss 승인 성공 후 escrow 기록 실패 시 "돈만 빠지고 미기록" — 반드시 탐지/로깅
+      const { error: escrowErr } = await service.from("escrow").insert({
         order_id: dbOrderId,
         match_id: activeMatch.id,
         total_amount: amount,
@@ -76,8 +89,18 @@ export async function POST(req: NextRequest) {
         pg_transaction_id: paymentKey,
         held_at: new Date().toISOString(),
       })
+
+      if (escrowErr) {
+        await service.from("payment_attempts").update({ status: "failed", error: `escrow_insert: ${escrowErr.message}` }).eq("payment_key", paymentKey)
+        await logError("payments/toss/confirm", "Toss 승인 성공했으나 escrow 기록 실패 (자금-기록 불일치)", {
+          paymentKey, dbOrderId, amount, error: escrowErr.message,
+        })
+        return NextResponse.json({ error: "결제는 승인됐으나 처리 중 오류가 발생했습니다. 고객센터가 확인 후 조치합니다." }, { status: 500 })
+      }
+
       await service.from("orders").update({ status: "in_progress" }).eq("id", dbOrderId)
       await service.from("matches").update({ status: "in_progress" }).eq("id", activeMatch.id)
+      await service.from("payment_attempts").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("payment_key", paymentKey)
 
       return NextResponse.json({ success: true })
     }
@@ -126,6 +149,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: "Unknown payment type" }, { status: 400 })
   } catch (e: any) {
+    await logError("payments/toss/confirm", "결제 확정 처리 중 예외", { error: e?.message })
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }

@@ -7,6 +7,10 @@
     {
       "path": "/api/admin/escrow/auto-release",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/admin/reconcile",
+      "schedule": "0 * * * *"
     }
   ]
 }

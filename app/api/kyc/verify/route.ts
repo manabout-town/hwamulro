@@ -335,6 +335,22 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    // 3.5. BUG-009 / POL-052: 재제출 남용 방지 (24h 횟수 제한 + 반복 실패 시 자동승인 차단)
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { data: recentSubs } = await service
+      .from('kyc_submissions')
+      .select('id')
+      .eq('user_id', user.id)
+      .gte('created_at', since24h)
+    const RESUBMIT_LIMIT = 3
+    const priorAttempts = recentSubs?.length ?? 0
+    if (priorAttempts >= RESUBMIT_LIMIT) {
+      return NextResponse.json(
+        { error: '재제출 한도를 초과했습니다. 24시간 후 다시 시도하거나 고객센터로 문의해주세요.' },
+        { status: 429 }
+      )
+    }
+
     // 4. Parse form data
     const formData = await req.formData()
     const bizFile = formData.get('business_registration') as File | null
@@ -462,7 +478,8 @@ export async function POST(req: NextRequest) {
 
     // 11. Determine status
     let submissionStatus: 'approved' | 'rejected' | 'manual_review'
-    if (confidence >= 0.72) {
+    // POL-052: 반복 시도(누적 2회+)는 자동승인 차단 → 수동검토 강제 (임계값 gaming 방지)
+    if (confidence >= 0.72 && priorAttempts < 2) {
       submissionStatus = 'approved'
     } else if (confidence < 0.35) {
       submissionStatus = 'rejected'
