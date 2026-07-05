@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
-cd ~/Desktop/화물로
+cd ~/Desktop/탁카
 
 echo "=== Vercel 환경변수 업데이트 ==="
-echo "https://hwamulro.vercel.app" | vercel env add NEXT_PUBLIC_APP_URL production --force
+echo "https://takca.vercel.app" | vercel env add NEXT_PUBLIC_APP_URL production --force
 echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFodHppYXp5a3ptb3hyanptd21oIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTgxNTIyNywiZXhwIjoyMDk1MzkxMjI3fQ.w4M7H0WKPSR7y6imKq9ZnhmHdWggEVrxmlObVFuaSuo" | vercel env add SUPABASE_SERVICE_ROLE_KEY production --force
 
 echo "=== Git 커밋 ==="

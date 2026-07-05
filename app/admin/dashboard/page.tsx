@@ -1,9 +1,24 @@
 import { createClient } from "@/lib/supabase/server"
 import { formatKRW, formatDate } from "@/lib/utils/format"
 import Link from "next/link"
+import { DashboardCharts } from "@/components/admin/DashboardCharts"
+
+function getLast14Days() {
+  const days = []
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    days.push(d.toISOString().slice(0, 10))
+  }
+  return days
+}
 
 export default async function AdminDashboard() {
   const supabase = await createClient()
+
+  const since = new Date()
+  since.setDate(since.getDate() - 13)
+  since.setHours(0, 0, 0, 0)
 
   const [
     { count: totalUsers },
@@ -13,6 +28,9 @@ export default async function AdminDashboard() {
     { data: escrows },
     { data: recentOrders },
     { data: disputes },
+    { data: recentOrdersChart },
+    { data: allUsers },
+    { data: releasedEscrows },
   ] = await Promise.all([
     supabase.from("users").select("*", { count: "exact", head: true }),
     supabase.from("orders").select("*", { count: "exact", head: true }),
@@ -21,12 +39,64 @@ export default async function AdminDashboard() {
     supabase.from("escrow").select("total_amount, platform_fee, status"),
     supabase.from("orders").select("*, shippers:users!shipper_id(name)").order("created_at", { ascending: false }).limit(10),
     supabase.from("disputes").select("*, match:matches(order_id)").eq("status", "open").limit(5),
+    supabase.from("orders").select("status, price, created_at").gte("created_at", since.toISOString()),
+    supabase.from("users").select("role"),
+    supabase.from("escrow").select("platform_fee, released_at").eq("status", "released").gte("released_at", since.toISOString()),
   ])
 
   const totalRevenue = escrows?.filter(e => e.status === "released")
     .reduce((s, e) => s + (e.platform_fee || 0), 0) || 0
   const heldAmount = escrows?.filter(e => e.status === "held")
     .reduce((s, e) => s + (e.total_amount || 0), 0) || 0
+
+  // 14일 주문 추이
+  const days = getLast14Days()
+  const orderTrend = days.map(date => {
+    const dayOrders = recentOrdersChart?.filter(o => o.created_at.slice(0, 10) === date) || []
+    const dayRevenue = releasedEscrows
+      ?.filter(e => e.released_at?.slice(0, 10) === date)
+      .reduce((s, e) => s + (e.platform_fee || 0), 0) || 0
+    return {
+      date: date.slice(5), // MM-DD
+      count: dayOrders.length,
+      revenue: dayRevenue,
+    }
+  })
+
+  // 주문 상태 분포
+  const statusColors: Record<string, string> = {
+    pending: "#f59e0b",
+    matched: "#6366f1",
+    in_progress: "#3b82f6",
+    completed: "#10b981",
+    cancelled: "#ef4444",
+    disputed: "#f97316",
+  }
+  const statusLabels: Record<string, string> = {
+    pending: "대기중",
+    matched: "매칭됨",
+    in_progress: "운송중",
+    completed: "완료",
+    cancelled: "취소",
+    disputed: "분쟁",
+  }
+  const statusCounts: Record<string, number> = {}
+  recentOrdersChart?.forEach(o => {
+    statusCounts[o.status] = (statusCounts[o.status] || 0) + 1
+  })
+  const statusDist = Object.entries(statusColors).map(([key, color]) => ({
+    name: statusLabels[key],
+    value: statusCounts[key] || 0,
+    color,
+  }))
+
+  // 회원 구성
+  const shipperCount = allUsers?.filter(u => u.role === "shipper").length || 0
+  const driverCount = allUsers?.filter(u => u.role === "driver").length || 0
+  const roleDist = [
+    { name: "화주", value: shipperCount, color: "#f97316" },
+    { name: "기사", value: driverCount, color: "#6366f1" },
+  ]
 
   const stats = [
     { label: "총 회원", value: `${totalUsers || 0}명`, icon: "👥", accent: "text-indigo-600", bg: "bg-indigo-50 border-indigo-100" },
@@ -62,6 +132,13 @@ export default async function AdminDashboard() {
         ))}
       </div>
 
+      {/* Charts */}
+      <DashboardCharts
+        orderTrend={orderTrend}
+        statusDist={statusDist}
+        roleDist={roleDist}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Recent Orders */}
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -70,22 +147,26 @@ export default async function AdminDashboard() {
             <Link href="/admin/orders" className="text-sm text-orange-500 hover:text-orange-600 font-medium">전체 보기 →</Link>
           </div>
           <div className="divide-y divide-gray-50">
-            {recentOrders?.map((o: any) => (
-              <div key={o.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-gray-900 truncate">{o.origin} → {o.destination}</div>
-                  <div className="text-sm text-gray-400 mt-0.5">{o.shippers?.name} · {formatDate(o.created_at)}</div>
+            {!recentOrders || recentOrders.length === 0 ? (
+              <div className="px-6 py-10 text-center text-gray-400 text-sm">아직 의뢰가 없습니다</div>
+            ) : (
+              recentOrders.map((o: any) => (
+                <div key={o.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-gray-900 truncate">{o.origin} → {o.destination}</div>
+                    <div className="text-sm text-gray-400 mt-0.5">{o.shippers?.name} · {formatDate(o.created_at)}</div>
+                  </div>
+                  <div className="text-right ml-4 shrink-0">
+                    <div className="font-bold text-orange-500">{formatKRW(o.price)}</div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-1 inline-block ${
+                      o.status === "completed" ? "bg-emerald-100 text-emerald-700" :
+                      o.status === "pending" ? "bg-amber-100 text-amber-700" :
+                      "bg-indigo-100 text-indigo-700"
+                    }`}>{o.status}</span>
+                  </div>
                 </div>
-                <div className="text-right ml-4 shrink-0">
-                  <div className="font-bold text-orange-500">{formatKRW(o.price)}</div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-1 inline-block ${
-                    o.status === "completed" ? "bg-emerald-100 text-emerald-700" :
-                    o.status === "pending" ? "bg-amber-100 text-amber-700" :
-                    "bg-indigo-100 text-indigo-700"
-                  }`}>{o.status}</span>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 

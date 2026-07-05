@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/Desktop/화물로
+cd ~/Desktop/탁카
 echo 'Redeploy (env vars 적용)...'
 vercel deploy --prod --yes
 echo ''

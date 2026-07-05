@@ -1,6 +1,6 @@
 #!/bin/bash
 echo '최종 배포 시작...'
-cd ~/Desktop/화물로
+cd ~/Desktop/탁카
 rm -f .git/index.lock .git/HEAD.lock 2>/dev/null
 git add -A
 git commit -m "fix: wrap useSearchParams in Suspense boundaries"
