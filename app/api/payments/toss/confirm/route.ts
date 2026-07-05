@@ -118,6 +118,17 @@ export async function POST(req: NextRequest) {
 
       if (existingUrgent) return NextResponse.json({ success: true })
 
+      // BUG-006/POL-011: urgent 결제도 해당 의뢰의 화주 본인만 (escrow 경로와 동일 인가 경계)
+      const { data: urgentOrder } = await service
+        .from("orders")
+        .select("shipper_id")
+        .eq("id", dbOrderId)
+        .single()
+      if (!urgentOrder) return NextResponse.json({ error: "Order not found" }, { status: 404 })
+      if (urgentOrder.shipper_id !== user.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+
       const encoded = Buffer.from(`${process.env.TOSS_SECRET_KEY}:`).toString("base64")
       const tossRes = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
         method: "POST",

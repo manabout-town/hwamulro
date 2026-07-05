@@ -5,6 +5,23 @@ import { createServiceClient } from '@/lib/supabase/service'
 
 export const maxDuration = 60
 
+// ─── Upload validation (POL-022 / BUG-008) ───────────────────────────────────
+// Claude Vision이 지원하고 신분/사업자 서류에 적합한 이미지 타입만 허용
+const ALLOWED_UPLOAD_MIME = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024 // 10MB
+
+// 위반 시 사용자용 에러 메시지 반환, 정상이면 null
+function validateUploadFile(file: File, label: string): string | null {
+  if (file.size === 0) return `${label} 파일이 비어 있습니다.`
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return `${label} 파일이 너무 큽니다. 10MB 이하 이미지로 업로드해주세요.`
+  }
+  if (!ALLOWED_UPLOAD_MIME.has(file.type)) {
+    return `${label}은(는) JPG·PNG·WEBP 이미지 파일만 업로드할 수 있습니다.`
+  }
+  return null
+}
+
 // ─── Type definitions ────────────────────────────────────────────────────────
 
 interface ClaudeDocResult {
@@ -383,6 +400,14 @@ export async function POST(req: NextRequest) {
         reason: '인증이 완료되었습니다.',
         confidence: 1.0,
       })
+    }
+
+    // 5.5. POL-022 / BUG-008: 파일 타입·용량 서버검증 (버퍼링·업로드·Vision 전송 이전)
+    const bizErr = validateUploadFile(bizFile, '사업자등록증')
+    if (bizErr) return NextResponse.json({ error: bizErr }, { status: 400 })
+    if (licFile) {
+      const licErr = validateUploadFile(licFile, '운전면허증')
+      if (licErr) return NextResponse.json({ error: licErr }, { status: 400 })
     }
 
     // 6. Upload files to Supabase Storage
