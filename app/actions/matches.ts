@@ -156,3 +156,79 @@ export async function cancelMatch(matchId: string, reason: string = "") {
 
   return { success: true, penaltyAmount, penaltyLabel, refunded: escrowRefunded }
 }
+
+export async function cancelMatchByShipper(matchId: string, reason: string = "") {
+  const supabase = await createClient()
+  const service = createServiceClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "로그인이 필요합니다" }
+
+  const { data: match } = await supabase
+    .from("matches")
+    .select("id, order_id, driver_id, status, orders!inner(shipper_id, origin, destination, status)")
+    .eq("id", matchId)
+    .single()
+
+  if (!match) return { error: "매칭을 찾을 수 없습니다" }
+  const order = match.orders as any
+  if (order?.shipper_id !== user.id) return { error: "권한이 없습니다" }
+  if (!["accepted", "in_progress"].includes(match.status)) {
+    return { error: "취소할 수 없는 상태입니다" }
+  }
+  // 분쟁 진행 중이면 취소 불가 — escrow 동결 상태 보호
+  if (order?.status === "disputed") {
+    return { error: "분쟁이 진행 중인 의뢰는 취소할 수 없습니다." }
+  }
+
+  // 물리적 운송 시작(pickup 리포트) 후에는 취소 불가 — 분쟁 경로 안내
+  const { data: pickupReport } = await service
+    .from("condition_reports")
+    .select("id")
+    .eq("match_id", matchId)
+    .eq("type", "pickup")
+    .maybeSingle()
+  if (pickupReport) {
+    return { error: "이미 운송이 시작되어 취소할 수 없습니다. 분쟁을 이용해주세요." }
+  }
+
+  const routeLabel = `${order?.origin} → ${order?.destination}`
+  const { refunded } = await refundEscrowIfHeld(service, match.order_id)
+
+  await service.from("matches").update({
+    status: "cancelled",
+    cancelled_at: new Date().toISOString(),
+    cancelled_by_user: user.id,
+    cancel_reason: reason || null,
+  }).eq("id", matchId)
+
+  await service.from("orders").update({ status: "cancelled" }).eq("id", match.order_id)
+
+  await service.from("notifications").insert([
+    {
+      user_id: user.id,
+      title: "취소 완료",
+      body: refunded
+        ? `${routeLabel} 의뢰를 취소했습니다. 결제금은 영업일 5~10일 내 환불됩니다.`
+        : `${routeLabel} 의뢰를 취소했습니다.`,
+      type: "match_cancelled",
+      reference_id: matchId,
+    },
+    {
+      user_id: match.driver_id,
+      title: "화주 취소 알림",
+      body: `화주가 ${routeLabel} 운송을 취소했습니다.`,
+      type: "match_cancelled",
+      reference_id: matchId,
+    },
+  ])
+
+  // POL-081: 위치 이력 파기
+  await service.from("driver_locations").delete().eq("match_id", matchId)
+
+  revalidatePath("/shipper/dashboard")
+  revalidatePath(`/shipper/orders/${match.order_id}`)
+  revalidatePath("/driver/matches")
+  revalidatePath("/driver/dashboard")
+
+  return { success: true, refunded }
+}
