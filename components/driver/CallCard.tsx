@@ -38,7 +38,7 @@ export function CallCard({ order }: CallCardProps) {
           <div className="text-2xl font-black text-emerald-500 tracking-tight leading-none">
             {formatKRW(payout)}
           </div>
-          <div className="text-[10px] text-gray-400 mt-0.5">예상 수령액</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">수령액</div>
         </div>
       </div>
 

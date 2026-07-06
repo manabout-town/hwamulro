@@ -3,7 +3,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { submitBid } from "@/app/actions/bids"
 import { formatKRW, formatDate, calculateFee } from "@/lib/utils/format"
-import { KakaoRouteMap, estimateRouteInfo } from "@/components/shared/KakaoRouteMap"
+import { KakaoRouteMap } from "@/components/shared/KakaoRouteMap"
 import Link from "next/link"
 
 interface Order {
@@ -45,7 +45,6 @@ export function DriverOrderDetailClient({ order, myBid, canBid, driverProfile }:
   }
 
   const { driverPayout } = calculateFee(bidPrice, 0.04)
-  const routeInfo = estimateRouteInfo(order.origin, order.destination)
 
   const bidStatusBadge = myBid?.status === "accepted"
     ? <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">✓ 승인됨</span>
@@ -92,36 +91,20 @@ export function DriverOrderDetailClient({ order, myBid, canBid, driverProfile }:
         </div>
       </div>
 
-      {/* 수익 예상 카드 */}
-      {routeInfo && (
-        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5">
-          <h3 className="font-semibold text-indigo-900 mb-3 text-sm">예상 수익 분석</h3>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-white rounded-xl p-3">
-              <p className="text-xs text-gray-400 mb-1">희망 운임</p>
-              <p className="font-bold text-gray-900">{formatKRW(order.price)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-3">
-              <p className="text-xs text-gray-400 mb-1">수령 예상액 (4% 수수료 제외)</p>
-              <p className="font-bold text-emerald-600">{formatKRW(calculateFee(order.price).driverPayout)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-3">
-              <p className="text-xs text-gray-400 mb-1">예상 통행료</p>
-              <p className="font-semibold text-gray-700">약 {routeInfo.toll.toLocaleString()}원</p>
-            </div>
-            <div className="bg-white rounded-xl p-3">
-              <p className="text-xs text-gray-400 mb-1">예상 연료비</p>
-              <p className="font-semibold text-gray-700">약 {routeInfo.fuel.toLocaleString()}원</p>
-            </div>
+      {/* 운임 정보 (확정값만 — 추정 통행료·연료비·순수익 제거) */}
+      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5">
+        <h3 className="font-semibold text-indigo-900 mb-3 text-sm">운임 정보</h3>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="bg-white rounded-xl p-3">
+            <p className="text-xs text-gray-400 mb-1">희망 운임</p>
+            <p className="font-bold text-gray-900">{formatKRW(order.price)}</p>
           </div>
-          <div className="mt-3 pt-3 border-t border-indigo-100 flex justify-between text-sm">
-            <span className="text-indigo-600">순수익 예상</span>
-            <span className="font-bold text-indigo-800">
-              약 {Math.max(0, calculateFee(order.price).driverPayout - routeInfo.toll - routeInfo.fuel).toLocaleString()}원
-            </span>
+          <div className="bg-white rounded-xl p-3">
+            <p className="text-xs text-gray-400 mb-1">실수령액 (4% 수수료 제외)</p>
+            <p className="font-bold text-emerald-600">{formatKRW(calculateFee(order.price).driverPayout)}</p>
           </div>
         </div>
-      )}
+      </div>
 
       {/* 화주 정보 */}
       {order.shippers && (
