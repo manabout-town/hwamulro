@@ -5,12 +5,12 @@ import { revalidatePath } from "next/cache"
 
 async function refundEscrowIfHeld(
   service: ReturnType<typeof createServiceClient>,
-  orderId: string
+  matchId: string
 ): Promise<{ refunded: boolean }> {
   const { data: escrow } = await service
     .from("escrow")
     .select("id, status")
-    .eq("order_id", orderId)
+    .eq("match_id", matchId)
     .maybeSingle()
   if (escrow?.status === "held") {
     await service.from("escrow").update({ status: "refunded" }).eq("id", escrow.id)
@@ -113,7 +113,7 @@ export async function cancelMatch(matchId: string, reason: string = "") {
   }
 
   // BUG(escrow 고아): 결제완료(held) 건 취소 시 화주에게 환불 — 미처리 시 돈 고아+재결제 위험
-  const { refunded: escrowRefunded } = await refundEscrowIfHeld(service, match.order_id)
+  const { refunded: escrowRefunded } = await refundEscrowIfHeld(service, matchId)
 
   await service.from("matches").update({
     status: "cancelled",
@@ -192,7 +192,7 @@ export async function cancelMatchByShipper(matchId: string, reason: string = "")
   }
 
   const routeLabel = `${order?.origin} → ${order?.destination}`
-  const { refunded } = await refundEscrowIfHeld(service, match.order_id)
+  const { refunded } = await refundEscrowIfHeld(service, matchId)
 
   await service.from("matches").update({
     status: "cancelled",
@@ -229,6 +229,7 @@ export async function cancelMatchByShipper(matchId: string, reason: string = "")
   revalidatePath(`/shipper/orders/${match.order_id}`)
   revalidatePath("/driver/matches")
   revalidatePath("/driver/dashboard")
+  revalidatePath(`/chat/${matchId}`)
 
   return { success: true, refunded }
 }
