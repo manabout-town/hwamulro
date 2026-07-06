@@ -7,6 +7,7 @@ import { cancelOrder, confirmCompletion } from "@/app/actions/orders"
 import { approveBid, rejectBid } from "@/app/actions/bids"
 import { DriverLocationMap } from "@/components/shared/DriverLocationMap"
 import { DriverRankBadge } from "@/components/shared/DriverRankBadge"
+import { ShipperCancelButton } from "@/components/shipper/ShipperCancelButton"
 
 export default async function ShipperOrderDetail({ params }: { params: { id: string } }) {
   const supabase = await createClient()
@@ -15,7 +16,7 @@ export default async function ShipperOrderDetail({ params }: { params: { id: str
   const [{ data: order }, { data: bids }, { data: escrow }] = await Promise.all([
     supabase.from("orders").select(`
       *,
-      matches(*, drivers:users!driver_id(*, driver_profiles(vehicle_type, vehicle_number, home_region, route_regions, rating_avg, rating_count)))
+      matches(*, condition_reports(type), drivers:users!driver_id(*, driver_profiles(vehicle_type, vehicle_number, home_region, route_regions, rating_avg, rating_count)))
     `).eq("id", params.id).eq("shipper_id", user!.id).single(),
     supabase.from("bids").select(`*, drivers:users!driver_id(name, phone, driver_profiles(vehicle_type, vehicle_number, home_region, route_regions, rating_avg, completed_count))`).eq("order_id", params.id).order("created_at", { ascending: true }),
     supabase.from("escrow").select("*").eq("order_id", params.id).maybeSingle(),
@@ -24,6 +25,8 @@ export default async function ShipperOrderDetail({ params }: { params: { id: str
   if (!order) notFound()
 
   const activeMatch = order.matches?.find((m: any) => !["cancelled"].includes(m.status))
+  const hasPickupReport = (activeMatch?.condition_reports as any[] | undefined)?.some(r => r.type === "pickup") ?? false
+  const canShipperCancel = !!activeMatch && ["accepted", "in_progress"].includes(activeMatch.status) && !hasPickupReport
   const pendingBids = bids?.filter((b: any) => b.status === "pending") || []
 
   return (
@@ -209,6 +212,13 @@ export default async function ShipperOrderDetail({ params }: { params: { id: str
             의뢰 취소
           </button>
         </form>
+      )}
+
+      {/* 시작 전 취소 (매칭·결제 후) */}
+      {canShipperCancel && activeMatch && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-6">
+          <ShipperCancelButton matchId={activeMatch.id} />
+        </div>
       )}
     </div>
   )
