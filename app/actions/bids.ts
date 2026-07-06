@@ -67,7 +67,13 @@ export async function approveBid(bidId: string, orderId: string) {
     status: "accepted",
     matched_at: new Date().toISOString(),
   })
-  if (matchError) return { error: matchError.message }
+  if (matchError) {
+    // BUG-010/POL-030: 동시 승인 등으로 유니크 위반(23505) 시 제약 원문 대신 친화 메시지
+    if ((matchError as { code?: string }).code === "23505") {
+      return { error: "이미 다른 기사와 매칭된 의뢰입니다" }
+    }
+    return { error: matchError.message }
+  }
 
   // 의뢰 금액 업데이트 + 상태 변경
   await service.from("orders").update({ status: "matched", price: bid.price }).eq("id", orderId)
