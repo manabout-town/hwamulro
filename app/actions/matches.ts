@@ -3,6 +3,22 @@ import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { revalidatePath } from "next/cache"
 
+async function refundEscrowIfHeld(
+  service: ReturnType<typeof createServiceClient>,
+  orderId: string
+): Promise<{ refunded: boolean }> {
+  const { data: escrow } = await service
+    .from("escrow")
+    .select("id, status")
+    .eq("order_id", orderId)
+    .maybeSingle()
+  if (escrow?.status === "held") {
+    await service.from("escrow").update({ status: "refunded" }).eq("id", escrow.id)
+    return { refunded: true }
+  }
+  return { refunded: false }
+}
+
 export async function cancelMatch(matchId: string, reason: string = "") {
   const supabase = await createClient()
   const service = createServiceClient()
@@ -96,6 +112,9 @@ export async function cancelMatch(matchId: string, reason: string = "") {
     penaltyStatus = "collected"
   }
 
+  // BUG(escrow 고아): 결제완료(held) 건 취소 시 화주에게 환불 — 미처리 시 돈 고아+재결제 위험
+  const { refunded: escrowRefunded } = await refundEscrowIfHeld(service, match.order_id)
+
   await service.from("matches").update({
     status: "cancelled",
     cancelled_at: now.toISOString(),
@@ -120,9 +139,10 @@ export async function cancelMatch(matchId: string, reason: string = "") {
     {
       user_id: shipperId,
       title: "기사 취소 알림",
-      body: penaltyAmount > 0
+      body: (penaltyAmount > 0
         ? `기사가 ${routeLabel} 운송을 취소했습니다. 위약금 ${penaltyAmount.toLocaleString()}원이 지급됩니다.`
-        : `기사가 ${routeLabel} 운송을 취소했습니다. 의뢰가 재공개됩니다.`,
+        : `기사가 ${routeLabel} 운송을 취소했습니다. 의뢰가 재공개됩니다.`)
+        + (escrowRefunded ? " 결제금은 영업일 5~10일 내 환불됩니다." : ""),
       type: "match_cancelled",
       reference_id: matchId,
     },
@@ -134,5 +154,5 @@ export async function cancelMatch(matchId: string, reason: string = "") {
   revalidatePath("/shipper/dashboard")
   revalidatePath("/shipper/wallet")
 
-  return { success: true, penaltyAmount, penaltyLabel }
+  return { success: true, penaltyAmount, penaltyLabel, refunded: escrowRefunded }
 }
