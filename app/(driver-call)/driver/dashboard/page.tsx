@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { AdBanner } from "@/components/shared/AdBanner"
 import { LocationTracker } from "@/components/driver/LocationTracker"
 import { CallCard } from "@/components/driver/CallCard"
 import { formatKRW } from "@/lib/utils/format"
@@ -43,6 +44,11 @@ export default async function DriverDashboardPage() {
         matchId={activeMatch?.id ?? null}
         active={activeMatch?.status === "in_progress"}
       />
+
+      {/* 광고 배너 */}
+      <div className="max-w-5xl mx-auto px-4 md:px-6 pt-4">
+        <AdBanner placement="driver_dashboard" />
+      </div>
 
       {/* Header */}
       <div className="bg-white sticky top-0 z-20 border-b border-gray-100 px-4">

@@ -4,6 +4,7 @@ import { Navbar } from "@/components/shared/Navbar"
 import { MobileNav } from "@/components/shared/MobileNav"
 import { SessionGuard } from "@/components/shared/SessionGuard"
 import { OrderBoardClient } from "./OrderBoardClient"
+import { AdBanner } from "@/components/shared/AdBanner"
 import type { User } from "@/lib/types"
 
 interface SearchParams {
@@ -65,6 +66,8 @@ export default async function OrderBoardPage({
       <SessionGuard />
       <Navbar user={profile as User} />
       <main className="max-w-5xl mx-auto px-4 md:px-6 py-8 pb-28 md:pb-10">
+        {/* 광고 배너 — 기사·화주 공용 오더보드 상단 */}
+        <AdBanner placement="order_board" className="mb-5" />
         <OrderBoardClient
           role={profile.role}
           userId={user.id}

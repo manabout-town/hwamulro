@@ -3,20 +3,24 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { claimOrder } from "@/app/actions/claim"
 import { ArrowRight, Loader2, CheckCircle2 } from "lucide-react"
+import { LegalWarningModal } from "./LegalWarningModal"
 
 export function ClaimButton({ orderId }: { orderId: string }) {
   const [isPending, startTransition] = useTransition()
   const [claimed, setClaimed] = useState(false)
+  const [showWarning, setShowWarning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
-  function handleClaim() {
+  function handleConfirmedClaim() {
     setError(null)
     startTransition(async () => {
       const result = await claimOrder(orderId)
       if (result.error) {
         setError(result.error)
+        setShowWarning(false)
       } else {
+        setShowWarning(false)
         setClaimed(true)
         setTimeout(() => router.push("/driver/matches"), 800)
       }
@@ -40,7 +44,7 @@ export function ClaimButton({ orderId }: { orderId: string }) {
         </div>
       )}
       <button
-        onClick={handleClaim}
+        onClick={() => { setError(null); setShowWarning(true) }}
         disabled={isPending}
         className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 disabled:bg-orange-300 text-white font-bold text-base py-4 transition-colors"
       >
@@ -56,6 +60,13 @@ export function ClaimButton({ orderId }: { orderId: string }) {
           </>
         )}
       </button>
+
+      <LegalWarningModal
+        open={showWarning}
+        loading={isPending}
+        onConfirm={handleConfirmedClaim}
+        onCancel={() => setShowWarning(false)}
+      />
     </div>
   )
 }

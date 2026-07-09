@@ -3,6 +3,7 @@ import { DriverFeedCard } from "@/components/driver/DriverFeedCard"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { FeedFilter } from "@/components/driver/FeedFilter"
+import { AdBanner } from "@/components/shared/AdBanner"
 
 interface SearchParams { origin?: string; urgent?: string }
 
@@ -37,6 +38,9 @@ export default async function DriverFeedPage({
       />
 
       <FeedFilter />
+
+      {/* 광고 배너 — 기사들이 매일 보는 피드 상단 */}
+      <AdBanner placement="driver_feed" className="mb-4" />
 
       {!orders || orders.length === 0 ? (
         <EmptyState

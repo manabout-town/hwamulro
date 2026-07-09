@@ -9,6 +9,7 @@ const shipperItems = [
   { href: "/shipper/dashboard", icon: "🏠", label: "홈" },
   { href: "/shipper/orders/new", icon: "➕", label: "의뢰 등록" },
   { href: "/shipper/drivers", icon: "🚛", label: "기사 찾기" },
+  { href: "/community", icon: "💬", label: "커뮤니티" },
   { href: "/shipper/wallet", icon: "💳", label: "지갑" },
   { href: "/shipper/mypage", icon: "👤", label: "마이" },
 ]
@@ -18,6 +19,7 @@ const driverItems = [
   { href: "/driver/feed", icon: "📋", label: "피드" },
   { href: "/driver/matches", icon: "🚚", label: "운송" },
   { href: "/driver/calendar", icon: "📅", label: "캘린더" },
+  { href: "/community", icon: "💬", label: "커뮤니티" },
   { href: "/driver/wallet", icon: "💰", label: "수익" },
   { href: "/driver/mypage", icon: "👤", label: "마이" },
 ]
@@ -30,6 +32,8 @@ const adminItems = [
   { href: "/admin/disputes", icon: "⚠️", label: "분쟁" },
   { href: "/admin/settlements", icon: "💳", label: "정산" },
   { href: "/admin/users", icon: "👥", label: "회원" },
+  { href: "/admin/community", icon: "💬", label: "신고" },
+  { href: "/admin/ads", icon: "📢", label: "광고" },
 ]
 
 const roleActiveColor: Record<string, string> = {

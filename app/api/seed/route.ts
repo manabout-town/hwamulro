@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 
 const TEST_ACCOUNTS = [
@@ -33,7 +34,21 @@ const TEST_ACCOUNTS = [
   },
 ]
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 프로덕션 보호: 시크릿 없으면 시딩 차단 (테스트계정 + 실지갑잔액 무단생성 방지)
+  const secret = process.env.CRON_SECRET
+  if (process.env.NODE_ENV === "production") {
+    if (!secret) {
+      return NextResponse.json({ error: "seeding disabled" }, { status: 404 })
+    }
+    const token =
+      request.headers.get("authorization")?.replace("Bearer ", "") ??
+      request.nextUrl.searchParams.get("token")
+    if (token !== secret) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+    }
+  }
+
   const service = createServiceClient()
   const results: { email: string; status: string; error?: string }[] = []
 

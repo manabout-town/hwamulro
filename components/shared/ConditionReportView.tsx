@@ -1,12 +1,13 @@
 "use client"
 import { useTransition, useState } from "react"
 import { confirmConditionReport } from "@/app/actions/conditionReport"
+import { PHOTO_SLOT_LABEL } from "@/lib/constants/photoSlots"
 
 export interface ConditionReport {
   id: string
   match_id: string
   type: "pickup" | "delivery"
-  photos: Array<{ url: string; caption: string }>
+  photos: Array<{ url: string; caption: string; slot?: string }>
   checklist: {
     exterior_ok?: boolean
     glass_ok?: boolean
@@ -89,7 +90,7 @@ export function ConditionReportView({ report, type, isShipper = false }: Props) 
         </span>
       </div>
 
-      {/* Photos */}
+      {/* Photos (슬롯 라벨 포함 — 탁송 전/후 대조용) */}
       {report.photos.length > 0 && (
         <div className="grid grid-cols-3 gap-1.5">
           {report.photos.map((photo, i) => (
@@ -98,13 +99,18 @@ export function ConditionReportView({ report, type, isShipper = false }: Props) 
               href={photo.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="aspect-square rounded-xl overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity"
+              className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity"
             >
               <img
                 src={photo.url}
                 alt={photo.caption || `차량 사진 ${i + 1}`}
                 className="w-full h-full object-cover"
               />
+              {(photo.slot ? PHOTO_SLOT_LABEL[photo.slot] : photo.caption) && (
+                <span className="absolute bottom-1 left-1 text-[9px] font-bold text-white bg-black/50 rounded px-1 py-0.5">
+                  {photo.slot ? PHOTO_SLOT_LABEL[photo.slot] : photo.caption}
+                </span>
+              )}
             </a>
           ))}
         </div>

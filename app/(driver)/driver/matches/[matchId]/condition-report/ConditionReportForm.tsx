@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { submitConditionReport } from "@/app/actions/conditionReport"
 import type { ChecklistData, PhotoData } from "@/app/actions/conditionReport"
-import { formatKRW } from "@/lib/utils/format"
+import { PHOTO_SLOTS } from "@/lib/constants/photoSlots"
 
 interface Order {
   id: string
@@ -22,16 +22,15 @@ interface Props {
 }
 
 const CHECKLIST_ITEMS: { key: keyof Omit<ChecklistData, "mileage">; label: string; icon: string }[] = [
-  { key: "exterior_ok", label: "외관 (스크래치/凹陷 없음)", icon: "🚗" },
+  { key: "exterior_ok", label: "외관 (스크래치/파손 없음)", icon: "🚗" },
   { key: "glass_ok", label: "유리 (파손 없음)", icon: "🪟" },
   { key: "tires_ok", label: "타이어 (펑크 없음)", icon: "⚙️" },
   { key: "interior_ok", label: "내부 (깨끗한 상태)", icon: "💺" },
   { key: "engine_ok", label: "엔진 이상 없음", icon: "🔧" },
 ]
 
-interface UploadedPhoto {
+interface SlotPhoto {
   url: string
-  caption: string
   localPreview: string
 }
 
@@ -39,8 +38,10 @@ export function ConditionReportForm({ matchId, type, order, alreadySubmitted }: 
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [photos, setPhotos] = useState<UploadedPhoto[]>([])
-  const [uploading, setUploading] = useState(false)
+  // 슬롯별 사진 (전면/후면/좌측면/우측면/지붕/차대번호/차키/계기판)
+  const [slotPhotos, setSlotPhotos] = useState<Record<string, SlotPhoto>>({})
+  const [uploadingSlot, setUploadingSlot] = useState<string | null>(null)
+  const [activeSlot, setActiveSlot] = useState<string | null>(null)
   const [checklist, setChecklist] = useState<ChecklistData>({
     exterior_ok: false,
     glass_ok: false,
@@ -53,54 +54,58 @@ export function ConditionReportForm({ matchId, type, order, alreadySubmitted }: 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
-  const title = type === "pickup" ? "픽업 전 차량 상태 확인" : "인도 후 차량 상태 확인"
+  const title = type === "pickup" ? "탁송 전 차량 상태 확인" : "탁송 후 차량 상태 확인"
   const subtitle = type === "pickup"
-    ? "차량 픽업 전 현재 상태를 기록합니다"
-    : "차량 인도 후 최종 상태를 기록합니다"
+    ? "차량 픽업 전 의무 사진 8장을 촬영해 기록합니다"
+    : "차량 인도 후 의무 사진 8장을 촬영해 기록합니다"
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files || [])
-    if (!files.length) return
-    if (photos.length + files.length > 6) {
-      setError("사진은 최대 6장까지 업로드할 수 있습니다")
-      return
-    }
+  const filledCount = Object.keys(slotPhotos).length
+  const allFilled = PHOTO_SLOTS.every(s => !!slotPhotos[s.key])
 
-    setUploading(true)
-    setError(null)
-
-    for (const file of files) {
-      try {
-        const localPreview = URL.createObjectURL(file)
-        const ext = file.name.split(".").pop() || "jpg"
-        const path = `${matchId}/${type}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
-
-        const { error: uploadError } = await supabase.storage
-          .from("condition-reports")
-          .upload(path, file, { contentType: file.type })
-
-        if (uploadError) throw uploadError
-
-        const { data: { publicUrl } } = supabase.storage
-          .from("condition-reports")
-          .getPublicUrl(path)
-
-        setPhotos(prev => [...prev, { url: publicUrl, caption: "", localPreview }])
-      } catch (e: any) {
-        setError(`사진 업로드 실패: ${e.message}`)
-        break
-      }
-    }
-
-    setUploading(false)
-    e.target.value = ""
+  function openPicker(slotKey: string) {
+    setActiveSlot(slotKey)
+    // state 반영 후 파일 선택창 열기
+    setTimeout(() => fileInputRef.current?.click(), 0)
   }
 
-  function removePhoto(index: number) {
-    setPhotos(prev => {
-      const next = [...prev]
-      URL.revokeObjectURL(next[index].localPreview)
-      next.splice(index, 1)
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const slotKey = activeSlot
+    e.target.value = ""
+    if (!file || !slotKey) return
+
+    setUploadingSlot(slotKey)
+    setError(null)
+    try {
+      const localPreview = URL.createObjectURL(file)
+      const ext = file.name.split(".").pop() || "jpg"
+      const path = `${matchId}/${type}/${slotKey}_${Date.now()}.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from("condition-reports")
+        .upload(path, file, { contentType: file.type })
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("condition-reports")
+        .getPublicUrl(path)
+
+      setSlotPhotos(prev => {
+        if (prev[slotKey]) URL.revokeObjectURL(prev[slotKey].localPreview)
+        return { ...prev, [slotKey]: { url: publicUrl, localPreview } }
+      })
+    } catch (err: any) {
+      setError(`사진 업로드 실패: ${err.message}`)
+    }
+    setUploadingSlot(null)
+    setActiveSlot(null)
+  }
+
+  function removeSlotPhoto(slotKey: string) {
+    setSlotPhotos(prev => {
+      const next = { ...prev }
+      if (next[slotKey]) URL.revokeObjectURL(next[slotKey].localPreview)
+      delete next[slotKey]
       return next
     })
   }
@@ -113,8 +118,18 @@ export function ConditionReportForm({ matchId, type, order, alreadySubmitted }: 
     e.preventDefault()
     setError(null)
 
+    if (!allFilled) {
+      const missing = PHOTO_SLOTS.filter(s => !slotPhotos[s.key]).map(s => s.label)
+      setError(`필수 사진이 누락되었습니다: ${missing.join(", ")}`)
+      return
+    }
+
     startTransition(async () => {
-      const photoData: PhotoData[] = photos.map(p => ({ url: p.url, caption: p.caption }))
+      const photoData: PhotoData[] = PHOTO_SLOTS.map(s => ({
+        url: slotPhotos[s.key].url,
+        caption: s.label,
+        slot: s.key,
+      }))
       const result = await submitConditionReport(matchId, type, photoData, checklist, notes)
       if (result.error) {
         setError(result.error)
@@ -132,7 +147,7 @@ export function ConditionReportForm({ matchId, type, order, alreadySubmitted }: 
           <div className="text-4xl mb-3">✅</div>
           <h2 className="text-lg font-bold text-gray-900 mb-2">이미 제출되었습니다</h2>
           <p className="text-sm text-gray-500 mb-6">
-            {type === "pickup" ? "픽업" : "인도"} 상태 리포트가 이미 제출되었습니다
+            {type === "pickup" ? "탁송 전" : "탁송 후"} 상태 리포트가 이미 제출되었습니다
           </p>
           <button
             onClick={() => router.push(`/chat/${matchId}`)}
@@ -163,84 +178,76 @@ export function ConditionReportForm({ matchId, type, order, alreadySubmitted }: 
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-5 space-y-5 pb-24">
+      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-5 space-y-5 pb-28">
         {/* Info card */}
         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
           <p className="text-sm text-indigo-700 font-medium">{subtitle}</p>
           <p className="text-xs text-indigo-500 mt-1">
-            리포트는 분쟁 발생 시 증거 자료로 활용됩니다
+            탁송 전/후 사진은 대조 목적의 <strong>의무 제출</strong>입니다. 미제출 시 {type === "pickup" ? "운송 시작" : "완료 요청"}이 불가하며, 분쟁 발생 시 증거 자료로 활용됩니다.
           </p>
         </div>
 
-        {/* Photo upload */}
+        {/* 의무 사진 8장 슬롯 */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 text-sm">사진 촬영 <span className="text-gray-400 font-normal">({photos.length}/6)</span></h2>
-            {photos.length < 6 && (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="text-xs text-indigo-600 font-semibold px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50"
-              >
-                {uploading ? "업로드 중..." : "+ 사진 추가"}
-              </button>
-            )}
+            <h2 className="font-semibold text-gray-900 text-sm">
+              필수 사진 <span className={`font-bold ${allFilled ? "text-emerald-600" : "text-orange-500"}`}>({filledCount}/8)</span>
+            </h2>
+            {!allFilled && <span className="text-[11px] text-gray-400">모든 칸을 채워야 제출 가능</span>}
           </div>
 
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            multiple
+            capture="environment"
             className="hidden"
             onChange={handleFileChange}
-            disabled={uploading}
           />
 
-          {photos.length === 0 ? (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="w-full aspect-[3/1] border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 hover:border-indigo-300 hover:bg-indigo-50 transition-colors disabled:opacity-50"
-            >
-              <span className="text-2xl">📷</span>
-              <span className="text-sm text-gray-400">
-                {uploading ? "업로드 중..." : "사진을 추가하세요 (최대 6장)"}
-              </span>
-            </button>
-          ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {photos.map((photo, i) => (
-                <div key={i} className="relative aspect-square">
-                  <img
-                    src={photo.localPreview}
-                    alt={`차량 사진 ${i + 1}`}
-                    className="w-full h-full object-cover rounded-xl border border-gray-200"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(i)}
-                    className="absolute top-1 right-1 w-6 h-6 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center text-xs font-bold transition-colors"
-                  >
-                    ×
-                  </button>
+          <div className="grid grid-cols-2 gap-2">
+            {PHOTO_SLOTS.map(slot => {
+              const photo = slotPhotos[slot.key]
+              const isUploading = uploadingSlot === slot.key
+              return (
+                <div key={slot.key} className="relative">
+                  {photo ? (
+                    <div className="relative aspect-[4/3]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photo.localPreview}
+                        alt={slot.label}
+                        className="w-full h-full object-cover rounded-xl border-2 border-emerald-300"
+                      />
+                      <span className="absolute bottom-1 left-1 text-[10px] font-bold text-white bg-emerald-600/90 rounded px-1.5 py-0.5">
+                        ✓ {slot.label}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeSlotPhoto(slot.key)}
+                        className="absolute top-1 right-1 w-6 h-6 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center text-xs font-bold"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openPicker(slot.key)}
+                      disabled={isUploading || uploadingSlot !== null}
+                      className="w-full aspect-[4/3] border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1 hover:border-indigo-300 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+                    >
+                      <span className="text-xl">{isUploading ? "⏳" : slot.icon}</span>
+                      <span className="text-xs font-semibold text-gray-600">
+                        {isUploading ? "업로드 중..." : slot.label}
+                      </span>
+                      <span className="text-[10px] text-gray-400 px-2 text-center leading-tight">{slot.hint}</span>
+                    </button>
+                  )}
                 </div>
-              ))}
-              {photos.length < 6 && (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="aspect-square border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1 hover:border-indigo-300 hover:bg-indigo-50 transition-colors disabled:opacity-50"
-                >
-                  <span className="text-lg">+</span>
-                  <span className="text-xs text-gray-400">추가</span>
-                </button>
-              )}
-            </div>
-          )}
+              )
+            })}
+          </div>
         </div>
 
         {/* Checklist */}
@@ -324,10 +331,14 @@ export function ConditionReportForm({ matchId, type, order, alreadySubmitted }: 
             type="submit"
             form=""
             onClick={handleSubmit}
-            disabled={isPending || uploading}
+            disabled={isPending || uploadingSlot !== null || !allFilled}
             className="w-full py-3.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold rounded-xl text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isPending ? "제출 중..." : `${type === "pickup" ? "픽업 전" : "인도 후"} 리포트 제출`}
+            {isPending
+              ? "제출 중..."
+              : allFilled
+              ? `${type === "pickup" ? "탁송 전" : "탁송 후"} 리포트 제출`
+              : `필수 사진 ${8 - filledCount}장 남음`}
           </button>
         </div>
       </div>

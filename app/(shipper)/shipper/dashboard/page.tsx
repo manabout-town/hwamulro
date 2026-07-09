@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { AdBanner } from "@/components/shared/AdBanner"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { RouteMap } from "@/components/shared/RouteMap"
 import { AvailableDriversBanner } from "@/components/shared/AvailableDriversBanner"
@@ -66,6 +67,9 @@ export default async function ShipperDashboardPage() {
         </div>
         <QuickOrderSheet />
       </div>
+
+      {/* 광고 배너 */}
+      <AdBanner placement="shipper_dashboard" />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">

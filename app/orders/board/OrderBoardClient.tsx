@@ -6,6 +6,7 @@ import { MapPin, Car, Calendar, Zap, Search, SlidersHorizontal, Plus } from "luc
 import { formatKRW, formatDate } from "@/lib/utils/format"
 import { ORDER_STATUS_LABEL, ORDER_STATUS_COLOR } from "@/lib/utils/status"
 import { acceptOrder } from "@/app/actions/orders"
+import { LegalWarningModal } from "@/components/driver/LegalWarningModal"
 
 interface Props {
   role: "shipper" | "driver"
@@ -149,7 +150,15 @@ export function OrderBoardClient({
     router.push("/orders/board")
   }, [router])
 
+  // 수락 클릭 → 법적 경고 모달 표시 (확인 후 최종 수락)
+  const [warningOrderId, setWarningOrderId] = useState<string | null>(null)
+
   function handleAccept(orderId: string) {
+    setWarningOrderId(orderId)
+  }
+
+  function handleConfirmedAccept(orderId: string) {
+    setWarningOrderId(null)
     setAcceptingId(orderId)
     startTransition(async () => {
       // acceptOrder server action redirects on success → Next.js throws a special NEXT_REDIRECT
@@ -182,6 +191,12 @@ export function OrderBoardClient({
 
   return (
     <div className="space-y-6">
+      <LegalWarningModal
+        open={warningOrderId !== null}
+        loading={acceptingId !== null}
+        onConfirm={() => warningOrderId && handleConfirmedAccept(warningOrderId)}
+        onCancel={() => setWarningOrderId(null)}
+      />
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>

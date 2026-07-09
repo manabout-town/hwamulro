@@ -2,6 +2,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { revalidatePath } from "next/cache"
+import { PHOTO_SLOT_KEYS, PHOTO_SLOT_LABEL } from "@/lib/constants/photoSlots"
 
 export interface ChecklistData {
   exterior_ok: boolean
@@ -15,6 +16,7 @@ export interface ChecklistData {
 export interface PhotoData {
   url: string
   caption: string
+  slot?: string // 의무 슬롯 키 (front/rear/left/right/roof/vin/key/dashboard)
 }
 
 export async function submitConditionReport(
@@ -27,6 +29,19 @@ export async function submitConditionReport(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "로그인이 필요합니다" }
+
+  // 의무 사진 8장 검증 (전면/후면/좌측면/우측면/지붕/차대번호/차키/계기판)
+  const slots = new Set(
+    (photos || [])
+      .filter(p => typeof p?.url === "string" && p.url.length > 0 && typeof p?.slot === "string")
+      .map(p => p.slot as string)
+  )
+  const missing = PHOTO_SLOT_KEYS.filter(k => !slots.has(k))
+  if (missing.length > 0) {
+    return {
+      error: `필수 사진이 누락되었습니다: ${missing.map(k => PHOTO_SLOT_LABEL[k]).join(", ")} (탁송 ${type === "pickup" ? "전" : "후"} 8장 의무 제출)`,
+    }
+  }
 
   // Verify caller is part of this match
   const { data: match } = await supabase
@@ -54,7 +69,7 @@ export async function submitConditionReport(
     .eq("type", type)
     .maybeSingle()
 
-  if (existing) return { error: `이미 ${type === "pickup" ? "픽업" : "인도"} 리포트를 제출했습니다` }
+  if (existing) return { error: `이미 ${type === "pickup" ? "탁송 전" : "탁송 후"} 리포트를 제출했습니다` }
 
   const service = createServiceClient()
   const { data, error } = await service

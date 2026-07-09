@@ -16,6 +16,7 @@ export function Navbar({ user }: NavbarProps) {
     { href: "/shipper/orders/new", label: "의뢰 등록" },
     { href: "/shipper/drivers", label: "기사 찾기" },
     { href: "/shipper/wallet", label: "지갑" },
+    { href: "/community", label: "커뮤니티" },
     { href: "/shipper/mypage", label: "마이페이지" },
   ]
   const driverNav = [
@@ -25,6 +26,7 @@ export function Navbar({ user }: NavbarProps) {
     { href: "/driver/calendar", label: "캘린더" },
     { href: "/driver/schedule", label: "가용일정" },
     { href: "/driver/wallet", label: "수익 지갑" },
+    { href: "/community", label: "커뮤니티" },
     { href: "/driver/mypage", label: "마이페이지" },
   ]
   const adminNav = [
@@ -35,6 +37,8 @@ export function Navbar({ user }: NavbarProps) {
     { href: "/admin/disputes", label: "분쟁 관리" },
     { href: "/admin/settlements", label: "정산 관리" },
     { href: "/admin/users", label: "회원 관리" },
+    { href: "/admin/community", label: "커뮤니티" },
+    { href: "/admin/ads", label: "광고" },
   ]
 
   const nav = user.role === "shipper" ? shipperNav

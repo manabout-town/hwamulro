@@ -82,6 +82,17 @@ export async function confirmStart(matchId: string) {
   if (!match) return { error: "매칭을 찾을 수 없습니다" }
   if (match.driver_id !== user.id) return { error: "권한이 없습니다" }
 
+  // 의무 사항: 탁송 전 차량 사진 8장(상태 리포트) 제출 후에만 운송 시작 가능
+  const { data: pickupReport } = await supabase
+    .from("condition_reports")
+    .select("id")
+    .eq("match_id", matchId)
+    .eq("type", "pickup")
+    .maybeSingle()
+  if (!pickupReport) {
+    return { error: "탁송 전 차량 사진 8장(전·후·좌·우측면, 지붕, 차대번호, 차키, 계기판)을 먼저 제출해야 운송을 시작할 수 있습니다" }
+  }
+
   const { error: matchErr } = await supabase.from("matches").update({ status: "in_progress" }).eq("id", matchId)
   if (matchErr) return { error: matchErr.message }
 
@@ -106,6 +117,17 @@ export async function requestCompletion(matchId: string) {
 
   if (!match) return { error: "매칭을 찾을 수 없습니다" }
   if (match.driver_id !== user.id) return { error: "기사만 완료 요청을 할 수 있습니다" }
+
+  // 의무 사항: 탁송 후 차량 사진 8장(상태 리포트) 제출 후에만 완료 요청 가능
+  const { data: deliveryReport } = await supabase
+    .from("condition_reports")
+    .select("id")
+    .eq("match_id", matchId)
+    .eq("type", "delivery")
+    .maybeSingle()
+  if (!deliveryReport) {
+    return { error: "탁송 후 차량 사진 8장(전·후·좌·우측면, 지붕, 차대번호, 차키, 계기판)을 먼저 제출해야 완료 요청이 가능합니다" }
+  }
 
   // 채팅에 시스템 메시지 삽입 (트리거가 화주에게 알림 전송)
   await service.from("chats").insert({

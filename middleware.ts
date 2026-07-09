@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   // Public paths — no auth required
-  const publicPaths = ["/", "/login", "/signup", "/intro", "/verify-email", "/auth/callback", "/terms", "/privacy"]
+  const publicPaths = ["/", "/login", "/signup", "/intro", "/verify-email", "/auth/callback", "/terms", "/privacy", "/partnership"]
   const isPublic = publicPaths.some(p => path === p || path.startsWith("/auth/")) || path.startsWith("/api/")
 
   if (!user && !isPublic && path !== "/onboarding") {
@@ -68,7 +68,7 @@ export async function middleware(request: NextRequest) {
 
   // KYC gate — unverified/rejected users must complete verification
   // (Allow: /verification itself, /intro, /profile, API routes, onboarding)
-  const kycExempt = ["/verification", "/onboarding", "/intro", "/profile"]
+  const kycExempt = ["/verification", "/onboarding", "/intro", "/profile", "/community", "/partnership"]
   const isKycExempt = kycExempt.some(p => path === p || path.startsWith(p + "/")) || path.startsWith("/api/")
 
   if (!isKycExempt && verification_status !== "verified") {
