@@ -2,12 +2,13 @@ import { useEffect, useState, type ReactNode } from "react"
 import { appLogin } from "@apps-in-toss/web-framework"
 import { supabase } from "./lib/supabase"
 import OrderNew from "./screens/OrderNew"
+import Feed from "./screens/Feed"
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL ?? "https://takca.vercel.app"
 const ORANGE = "#F97316"
 
 type Role = "shipper" | "driver"
-type View = "loading" | "entry" | "home" | "order-new"
+type View = "loading" | "entry" | "home" | "order-new" | "feed"
 
 function Center({ children }: { children: ReactNode }) {
   return (
@@ -77,6 +78,10 @@ export default function App() {
     return <OrderNew onBack={() => setView("home")} onDone={() => setView("home")} />
   }
 
+  if (view === "feed") {
+    return <Feed onBack={() => setView("home")} />
+  }
+
   if (view === "home") {
     return (
       <Center>
@@ -90,7 +95,7 @@ export default function App() {
             탁송 주문 등록
           </button>
         ) : (
-          <button onClick={() => setStatus("기사 피드는 곧 열립니다")}
+          <button onClick={() => setView("feed")}
             style={{ background: ORANGE, color: "#fff", border: 0, borderRadius: 14,
               padding: "16px 28px", fontSize: 17, fontWeight: 800, cursor: "pointer" }}>
             탁송 의뢰 찾기
