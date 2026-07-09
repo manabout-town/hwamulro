@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { appLogin } from "@apps-in-toss/web-framework"
 import { supabase } from "./lib/supabase"
+import OrderNew from "./screens/OrderNew"
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL ?? "https://takca.vercel.app"
 const ORANGE = "#F97316"
 
 type Role = "shipper" | "driver"
-type View = "loading" | "entry" | "home"
+type View = "loading" | "entry" | "home" | "order-new"
 
 function Center({ children }: { children: ReactNode }) {
   return (
@@ -27,9 +28,17 @@ export default function App() {
   const [status, setStatus] = useState("")
   const [isNew, setIsNew] = useState(false)
 
+  async function loadRole() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (data?.role === "driver" || data?.role === "shipper") setRole(data.role)
+  }
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setView(data.session ? "home" : "entry")
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) { await loadRole(); setView("home") }
+      else setView("entry")
     })
   }, [])
 
@@ -64,15 +73,33 @@ export default function App() {
 
   if (view === "loading") return <Center><p style={{ color: "#9CA3AF" }}>불러오는 중…</p></Center>
 
+  if (view === "order-new") {
+    return <OrderNew onBack={() => setView("home")} onDone={() => setView("home")} />
+  }
+
   if (view === "home") {
     return (
       <Center>
         <Brand />
-        <p style={{ fontSize: 20, fontWeight: 700 }}>{isNew ? "환영합니다 🎉" : "다시 오셨어요"}</p>
-        <p style={{ color: "#6B7280", textAlign: "center" }}>로그인 완료 · 곧 주문/입찰 화면이 열립니다</p>
+        <p style={{ fontSize: 18, fontWeight: 700 }}>{isNew ? "환영합니다 🎉" : "다시 오셨어요"}</p>
+        <p style={{ color: "#6B7280" }}>{role === "shipper" ? "화주 계정" : "기사 계정"}</p>
+        {role === "shipper" ? (
+          <button onClick={() => setView("order-new")}
+            style={{ background: ORANGE, color: "#fff", border: 0, borderRadius: 14,
+              padding: "16px 28px", fontSize: 17, fontWeight: 800, cursor: "pointer" }}>
+            탁송 주문 등록
+          </button>
+        ) : (
+          <button onClick={() => setStatus("기사 피드는 곧 열립니다")}
+            style={{ background: ORANGE, color: "#fff", border: 0, borderRadius: 14,
+              padding: "16px 28px", fontSize: 17, fontWeight: 800, cursor: "pointer" }}>
+            탁송 의뢰 찾기
+          </button>
+        )}
+        <div style={{ color: "#9CA3AF", fontSize: 14, minHeight: 20 }}>{status}</div>
         <button onClick={handleLogout}
           style={{ background: "#fff", color: "#374151", border: "1px solid #E5E7EB",
-            borderRadius: 12, padding: "12px 22px", fontSize: 15, fontWeight: 600 }}>
+            borderRadius: 12, padding: "10px 20px", fontSize: 14, fontWeight: 600 }}>
           로그아웃
         </button>
       </Center>
@@ -86,8 +113,7 @@ export default function App() {
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
         {(["shipper", "driver"] as Role[]).map((r) => (
           <button key={r} onClick={() => setRole(r)}
-            style={{ padding: "14px 18px", borderRadius: 12, fontSize: 15, fontWeight: 700,
-              cursor: "pointer",
+            style={{ padding: "14px 18px", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: "pointer",
               border: role === r ? `2px solid ${ORANGE}` : "1.5px solid #E5E7EB",
               background: role === r ? "#FFF3E9" : "#fff",
               color: role === r ? ORANGE : "#6B7280" }}>
