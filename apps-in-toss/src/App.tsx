@@ -3,12 +3,14 @@ import { appLogin } from "@apps-in-toss/web-framework"
 import { supabase } from "./lib/supabase"
 import OrderNew from "./screens/OrderNew"
 import Feed from "./screens/Feed"
+import MyOrders from "./screens/MyOrders"
+import OrderDetail from "./screens/OrderDetail"
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL ?? "https://takca.vercel.app"
 const ORANGE = "#F97316"
 
 type Role = "shipper" | "driver"
-type View = "loading" | "entry" | "home" | "order-new" | "feed"
+type View = "loading" | "entry" | "home" | "order-new" | "feed" | "myorders" | "order-detail"
 
 function Center({ children }: { children: ReactNode }) {
   return (
@@ -28,6 +30,7 @@ export default function App() {
   const [role, setRole] = useState<Role>("shipper")
   const [status, setStatus] = useState("")
   const [isNew, setIsNew] = useState(false)
+  const [detailId, setDetailId] = useState<string | null>(null)
 
   async function loadRole() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -82,6 +85,13 @@ export default function App() {
     return <Feed onBack={() => setView("home")} />
   }
 
+  if (view === "myorders") {
+    return <MyOrders onBack={() => setView("home")} onOpen={(id) => { setDetailId(id); setView("order-detail") }} />
+  }
+  if (view === "order-detail" && detailId) {
+    return <OrderDetail orderId={detailId} onBack={() => setView("myorders")} />
+  }
+
   if (view === "home") {
     return (
       <Center>
@@ -89,11 +99,18 @@ export default function App() {
         <p style={{ fontSize: 18, fontWeight: 700 }}>{isNew ? "환영합니다 🎉" : "다시 오셨어요"}</p>
         <p style={{ color: "#6B7280" }}>{role === "shipper" ? "화주 계정" : "기사 계정"}</p>
         {role === "shipper" ? (
-          <button onClick={() => setView("order-new")}
-            style={{ background: ORANGE, color: "#fff", border: 0, borderRadius: 14,
-              padding: "16px 28px", fontSize: 17, fontWeight: 800, cursor: "pointer" }}>
-            탁송 주문 등록
-          </button>
+          <>
+            <button onClick={() => setView("order-new")}
+              style={{ background: ORANGE, color: "#fff", border: 0, borderRadius: 14,
+                padding: "16px 28px", fontSize: 17, fontWeight: 800, cursor: "pointer" }}>
+              탁송 주문 등록
+            </button>
+            <button onClick={() => setView("myorders")}
+              style={{ background: "#fff", color: ORANGE, border: `1.5px solid ${ORANGE}`, borderRadius: 14,
+                padding: "14px 28px", fontSize: 16, fontWeight: 800, cursor: "pointer" }}>
+              내 주문 보기
+            </button>
+          </>
         ) : (
           <button onClick={() => setView("feed")}
             style={{ background: ORANGE, color: "#fff", border: 0, borderRadius: 14,
