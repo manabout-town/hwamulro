@@ -12,12 +12,6 @@ export interface ResolvedUser {
   isNew: boolean
 }
 
-/** 토스 admin API의 createUser 반환 구조 (SDK와 호환되는 최소 인터페이스) */
-interface CreateUserResult {
-  user: { id: string } | null
-  error: { message: string } | null
-}
-
 export function shadowEmail(tossUserKey: string): string {
   return `toss_${tossUserKey}@${SHADOW_EMAIL_DOMAIN}`
 }
@@ -43,15 +37,15 @@ export async function resolveUserByTossKey(
   }
 
   const email = shadowEmail(tossUserKey)
-  const { user: createdUser, error: createErr } = (await service.auth.admin.createUser({
+  const { data: created, error: createErr } = await service.auth.admin.createUser({
     email,
     email_confirm: true,
     user_metadata: { name: profile.name, role: profile.role, toss_user_key: tossUserKey },
-  })) as unknown as CreateUserResult
-  if (createErr || !createdUser) {
+  })
+  if (createErr || !created?.user) {
     throw new Error(`shadow user 생성 실패: ${createErr?.message ?? "unknown"}`)
   }
-  const userId = createdUser.id
+  const userId = created.user.id
 
   const { error: upsertErr } = await service.from("users").upsert({
     id: userId,
