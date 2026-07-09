@@ -27,3 +27,6 @@ dist-ssr
 
 # AIT build artifact
 *.ait
+
+# Local env (real secrets — only .env.example is committed)
+.env
