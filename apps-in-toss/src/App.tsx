@@ -5,12 +5,15 @@ import OrderNew from "./screens/OrderNew"
 import Feed from "./screens/Feed"
 import MyOrders from "./screens/MyOrders"
 import OrderDetail from "./screens/OrderDetail"
+import More from "./screens/More"
+import DriverMy from "./screens/DriverMy"
+import MatchDetail from "./screens/MatchDetail"
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL ?? "https://takca.vercel.app"
 const ORANGE = "#F97316"
 
 type Role = "shipper" | "driver"
-type View = "loading" | "entry" | "home" | "order-new" | "feed" | "myorders" | "order-detail"
+type View = "loading" | "entry" | "home" | "order-new" | "feed" | "myorders" | "order-detail" | "more" | "driver-my" | "match-detail"
 
 function Center({ children }: { children: ReactNode }) {
   return (
@@ -75,6 +78,16 @@ export default function App() {
     setView("entry")
   }
 
+  // DEV 전용: 토스 브릿지 없이 기존 테스트 계정으로 로그인(로컬 화면검증용). 프로덕션 빌드에선 노출 안 됨.
+  async function devLogin() {
+    setStatus("테스트 로그인 중…")
+    const email = role === "driver" ? "driver@takca.test" : "shipper@takca.test"
+    const { error } = await supabase.auth.signInWithPassword({ email, password: "Takca2026!" })
+    if (error) { setStatus(`테스트 로그인 실패: ${error.message}`); return }
+    await loadRole()
+    setView("home")
+  }
+
   if (view === "loading") return <Center><p style={{ color: "#9CA3AF" }}>불러오는 중…</p></Center>
 
   if (view === "order-new") {
@@ -89,7 +102,16 @@ export default function App() {
     return <MyOrders onBack={() => setView("home")} onOpen={(id) => { setDetailId(id); setView("order-detail") }} />
   }
   if (view === "order-detail" && detailId) {
-    return <OrderDetail orderId={detailId} onBack={() => setView("myorders")} />
+    return <OrderDetail orderId={detailId} onBack={() => setView("myorders")} onOpenMatch={(id) => { setDetailId(id); setView("match-detail") }} />
+  }
+  if (view === "driver-my") {
+    return <DriverMy onBack={() => setView("home")} onOpenMatch={(id) => { setDetailId(id); setView("match-detail") }} />
+  }
+  if (view === "match-detail" && detailId) {
+    return <MatchDetail orderId={detailId} onBack={() => setView("home")} />
+  }
+  if (view === "more") {
+    return <More onBack={() => setView("home")} onLogout={handleLogout} />
   }
 
   if (view === "home") {
@@ -112,17 +134,24 @@ export default function App() {
             </button>
           </>
         ) : (
-          <button onClick={() => setView("feed")}
-            style={{ background: ORANGE, color: "#fff", border: 0, borderRadius: 14,
-              padding: "16px 28px", fontSize: 17, fontWeight: 800, cursor: "pointer" }}>
-            탁송 의뢰 찾기
-          </button>
+          <>
+            <button onClick={() => setView("feed")}
+              style={{ background: ORANGE, color: "#fff", border: 0, borderRadius: 14,
+                padding: "16px 28px", fontSize: 17, fontWeight: 800, cursor: "pointer" }}>
+              탁송 의뢰 찾기
+            </button>
+            <button onClick={() => setView("driver-my")}
+              style={{ background: "#fff", color: ORANGE, border: `1.5px solid ${ORANGE}`, borderRadius: 14,
+                padding: "14px 28px", fontSize: 16, fontWeight: 800, cursor: "pointer" }}>
+              내 입찰 · 매칭
+            </button>
+          </>
         )}
         <div style={{ color: "#9CA3AF", fontSize: 14, minHeight: 20 }}>{status}</div>
-        <button onClick={handleLogout}
+        <button onClick={() => setView("more")}
           style={{ background: "#fff", color: "#374151", border: "1px solid #E5E7EB",
-            borderRadius: 12, padding: "10px 20px", fontSize: 14, fontWeight: 600 }}>
-          로그아웃
+            borderRadius: 12, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+          더보기 · 고객센터
         </button>
       </Center>
     )
@@ -148,7 +177,17 @@ export default function App() {
           padding: "16px 28px", fontSize: 18, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>
         토스로 시작하기
       </button>
+      <p style={{ color: "#9CA3AF", fontSize: 12, lineHeight: 1.6, textAlign: "center", maxWidth: 300 }}>
+        시작하면 <button onClick={() => setView("more")} style={{ background: "none", border: 0, padding: 0, color: "#6B7280", textDecoration: "underline", fontSize: 12, cursor: "pointer" }}>이용약관</button> 및 <button onClick={() => setView("more")} style={{ background: "none", border: 0, padding: 0, color: "#6B7280", textDecoration: "underline", fontSize: 12, cursor: "pointer" }}>개인정보처리방침</button>에 동의하는 것으로 간주해요.
+      </p>
       <div style={{ color: "#9CA3AF", fontSize: 14, minHeight: 20 }}>{status}</div>
+      {import.meta.env.DEV && (
+        <button onClick={devLogin}
+          style={{ background: "#F3F4F6", color: "#6B7280", border: "1px dashed #D1D5DB", borderRadius: 10,
+            padding: "10px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          🧪 테스트 로그인 (DEV)
+        </button>
+      )}
     </Center>
   )
 }

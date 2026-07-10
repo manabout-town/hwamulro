@@ -7,7 +7,7 @@ const ORANGE = "#F97316"
 interface Bid { id: string; price: number; message: string | null; status: string }
 interface OrderInfo { origin: string; destination: string; price: number; status: string }
 
-export default function OrderDetail({ orderId, onBack }: { orderId: string; onBack: () => void }) {
+export default function OrderDetail({ orderId, onBack, onOpenMatch }: { orderId: string; onBack: () => void; onOpenMatch: (orderId: string) => void }) {
   const [order, setOrder] = useState<OrderInfo | null>(null)
   const [bids, setBids] = useState<Bid[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,6 +52,13 @@ export default function OrderDetail({ orderId, onBack }: { orderId: string; onBa
         <>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>{order.origin} → {order.destination}</h2>
           <div style={{ color: "#6B7280", marginTop: 6 }}>희망가 {order.price.toLocaleString()}원 · {order.status === "pending" ? "입찰 대기" : order.status === "matched" ? "매칭됨" : order.status}</div>
+          {(order.status === "matched" || order.status === "in_progress") && (
+            <button onClick={() => onOpenMatch(orderId)}
+              style={{ marginTop: 14, width: "100%", background: ORANGE, color: "#fff", border: 0, borderRadius: 12,
+                padding: 14, fontSize: 16, fontWeight: 800, cursor: "pointer" }}>
+              상대 연락처 · 채팅 보기 →
+            </button>
+          )}
         </>
       )}
       <h3 style={{ fontSize: 17, fontWeight: 800, color: "#111827", margin: "22px 0 10px" }}>받은 입찰 {bids.length}건</h3>

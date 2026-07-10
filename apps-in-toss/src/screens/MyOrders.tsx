@@ -9,6 +9,8 @@ const STATUS_KO: Record<string, string> = {
 
 interface Order { id: string; origin: string; destination: string; price: number; status: string }
 
+const ACTIVE = ["matched", "in_progress"]
+
 export default function MyOrders({ onBack, onOpen }: { onBack: () => void; onOpen: (id: string) => void }) {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,10 +27,31 @@ export default function MyOrders({ onBack, onOpen }: { onBack: () => void; onOpe
     })()
   }, [])
 
+  const inProgress = orders.filter((o) => ACTIVE.includes(o.status)).length
+  const done = orders.filter((o) => o.status === "completed").length
+  const total = orders.filter((o) => ACTIVE.includes(o.status) || o.status === "completed").reduce((s, o) => s + o.price, 0)
+
   return (
     <main style={{ maxWidth: 480, margin: "0 auto", padding: 24, fontFamily: "-apple-system, sans-serif" }}>
       <button onClick={onBack} style={{ background: "none", border: 0, color: "#6B7280", fontSize: 15, marginBottom: 12, cursor: "pointer" }}>← 뒤로</button>
-      <h2 style={{ fontSize: 24, fontWeight: 800, color: "#111827", marginBottom: 16 }}>내 주문</h2>
+      <h2 style={{ fontSize: 24, fontWeight: 800, color: "#111827", marginBottom: 14 }}>내 주문</h2>
+
+      {!loading && orders.length > 0 && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <div style={{ flex: 1, background: "#FFF3E9", borderRadius: 12, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#9A3412", fontWeight: 700 }}>진행중</div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: ORANGE }}>{inProgress}건</div>
+          </div>
+          <div style={{ flex: 1, background: "#FFF3E9", borderRadius: 12, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#9A3412", fontWeight: 700 }}>완료</div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: ORANGE }}>{done}건</div>
+          </div>
+          <div style={{ flex: 1.4, background: "#FFF3E9", borderRadius: 12, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#9A3412", fontWeight: 700 }}>확정 총액</div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: ORANGE }}>{total.toLocaleString()}원</div>
+          </div>
+        </div>
+      )}
       {loading && <p style={{ color: "#9CA3AF" }}>불러오는 중…</p>}
       {!loading && orders.length === 0 && <p style={{ color: "#9CA3AF", textAlign: "center", marginTop: 40 }}>아직 등록한 주문이 없어요</p>}
       {orders.map((o) => (
