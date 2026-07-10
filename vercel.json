@@ -11,6 +11,10 @@
     {
       "path": "/api/admin/reconcile",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/apps-in-toss/match-fee/sweep",
+      "schedule": "0 4 * * *"
     }
   ]
 }

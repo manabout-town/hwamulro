@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createServiceClient } from "@/lib/supabase/service"
 import { approveBidFlow } from "@/lib/apps-in-toss/approveBid"
+import { MATCH_FEE_AMOUNT, MATCH_FEE_TTL_MS } from "@/lib/apps-in-toss/matchFeeConfig"
 
 export async function POST(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -51,6 +52,18 @@ export async function POST(request: NextRequest) {
         acceptBid: async (bidId) => { await service.from("bids").update({ status: "accepted" }).eq("id", bidId) },
         rejectOtherBids: async (orderId, bidId) => {
           await service.from("bids").update({ status: "rejected" }).eq("order_id", orderId).neq("id", bidId)
+        },
+        insertMatchFee: async (orderId, driverId) => {
+          const { data: match } = await service.from("matches")
+            .select("id").eq("order_id", orderId).eq("driver_id", driverId).single()
+          if (!match) return
+          await service.from("match_fees").upsert({
+            match_id: match.id,
+            driver_id: driverId,
+            amount: MATCH_FEE_AMOUNT,
+            status: "pending",
+            expires_at: new Date(Date.now() + MATCH_FEE_TTL_MS).toISOString(),
+          }, { onConflict: "match_id", ignoreDuplicates: true })
         },
       },
       { bidId: body.bidId, orderId: body.orderId, userId: user.id }
