@@ -12,6 +12,7 @@ function deps(over: Partial<Parameters<typeof approveBidFlow>[0]> = {}) {
       updateOrderMatched: async () => { calls.push("order") },
       acceptBid: async () => { calls.push("accept") },
       rejectOtherBids: async () => { calls.push("reject") },
+      insertMatchFee: async () => { calls.push("fee") },
       ...over,
     },
   }
@@ -22,7 +23,12 @@ describe("approveBidFlow", () => {
     const { d, calls } = deps()
     const r = await approveBidFlow(d, { bidId: "b1", orderId: "o1", userId: "shipper-1" })
     expect(r).toEqual({ ok: true })
-    expect(calls).toEqual(["match", "order", "accept", "reject"])
+    expect(calls).toEqual(["match", "order", "accept", "reject", "fee"])
+  })
+  it("fee 생성은 match·order·accept·reject 이후 마지막에 호출", async () => {
+    const { d, calls } = deps()
+    await approveBidFlow(d, { bidId: "b1", orderId: "o1", userId: "shipper-1" })
+    expect(calls[calls.length - 1]).toBe("fee")
   })
   it("주문 소유자가 아니면 권한 에러", async () => {
     const { d } = deps({ getOrder: async () => ({ shipper_id: "other", status: "pending" }) })

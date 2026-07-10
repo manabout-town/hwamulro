@@ -5,6 +5,7 @@ export interface ApproveBidDeps {
   updateOrderMatched: (orderId: string, price: number) => Promise<void>
   acceptBid: (bidId: string) => Promise<void>
   rejectOtherBids: (orderId: string, bidId: string) => Promise<void>
+  insertMatchFee: (orderId: string, driverId: string) => Promise<void>
 }
 
 export interface ApproveBidInput {
@@ -40,5 +41,6 @@ export async function approveBidFlow(
   await deps.updateOrderMatched(input.orderId, bid.price)
   await deps.acceptBid(input.bidId)
   await deps.rejectOtherBids(input.orderId, input.bidId)
+  await deps.insertMatchFee(input.orderId, bid.driver_id)
   return { ok: true }
 }
