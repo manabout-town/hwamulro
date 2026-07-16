@@ -12,7 +12,7 @@ export default function Home() {
       <View style={s.wrap}>
         <Text style={s.greeting}>{isDriver ? "안녕하세요, 기사님" : "안녕하세요, 화주님"}</Text>
         <Text style={s.desc}>{isDriver ? "오늘 새로운 탁송 건을 확인해보세요" : "카 캐리어 탁송을 등록해보세요"}</Text>
-        <Pressable style={s.cta} onPress={() => router.push("/(tabs)/orders")}>
+        <Pressable style={s.cta} onPress={() => router.push(isDriver ? "/(tabs)/orders" : "/order/new")}>
           <Text style={s.ctaText}>{isDriver ? "탁송 피드 보기" : "주문 등록하기"}</Text>
         </Pressable>
       </View>
