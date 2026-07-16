@@ -30,7 +30,10 @@ export async function GET(request: NextRequest) {
           await service.from("orders").update({ status: "pending", price: 0 }).eq("id", orderId)
           await service.from("bids").update({ status: "pending" }).eq("order_id", orderId).eq("status", "accepted")
         },
-        cancelFee: async (feeId) => { await service.from("match_fees").update({ status: "cancelled" }).eq("id", feeId) },
+        cancelFee: async (feeId) => {
+          const { data } = await service.from("match_fees").update({ status: "cancelled" }).eq("id", feeId).eq("status", "pending").select("id")
+          return (data as { id: string }[] | null)?.length ?? 0
+        },
         now: () => Date.now(),
       },
       { feeId: row.id }

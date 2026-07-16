@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js"
 import { createServiceClient } from "@/lib/supabase/service"
 import { createMtlsFetch } from "@/lib/apps-in-toss/mtls"
 import { confirmMatchFeeFlow } from "@/lib/apps-in-toss/matchFeeFlow"
-import { executeTossPayment } from "@/lib/apps-in-toss/tossPay"
+import { executeTossPayment, refundTossPayment } from "@/lib/apps-in-toss/tossPay"
 
 export async function POST(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
     const result = await confirmMatchFeeFlow(
       {
         getFee: async (feeId) => {
-          const { data } = await service.from("match_fees").select("id,driver_id,status,toss_order_no").eq("id", feeId).single()
-          return (data as { id: string; driver_id: string; status: string; toss_order_no: string | null } | null) ?? null
+          const { data } = await service.from("match_fees").select("id,driver_id,status,toss_order_no,expires_at").eq("id", feeId).single()
+          return (data as { id: string; driver_id: string; status: string; toss_order_no: string | null; expires_at: string } | null) ?? null
         },
         getDriverTossKey: async (driverId) => {
           const { data } = await service.from("users").select("toss_user_key").eq("id", driverId).single()
@@ -43,9 +43,24 @@ export async function POST(request: NextRequest) {
         },
         executePayment: async ({ tossUserKey, payToken, orderNo, isTest }) =>
           executeTossPayment(mtlsFetch, { apiBase }, { tossUserKey, payToken, orderNo, isTest }),
-        markPaid: async (feeId, payToken) => {
-          await service.from("match_fees").update({ status: "paid", toss_payment_key: payToken, paid_at: new Date().toISOString() }).eq("id", feeId)
+        markPaid: async (feeId, payToken, transactionId) => {
+          const { data } = await service.from("match_fees")
+            .update({ status: "paid", toss_payment_key: payToken, toss_transaction_id: transactionId, paid_at: new Date().toISOString() })
+            .eq("id", feeId).eq("status", "pending").select("id")
+          return (data as { id: string }[] | null)?.length ?? 0
         },
+        refundPayment: async ({ tossUserKey, payToken, isTest, reason }) => {
+          await refundTossPayment(mtlsFetch, { apiBase }, { tossUserKey, payToken, isTest, reason })
+        },
+        markRefunded: async (feeId, reason) => {
+          await service.from("match_fees")
+            .update({ status: "refunded", refunded_at: new Date().toISOString(), refund_reason: reason })
+            .eq("id", feeId)
+        },
+        markRefundFailed: async (feeId, reason) => {
+          await service.from("match_fees").update({ refund_reason: reason }).eq("id", feeId)
+        },
+        now: () => Date.now(),
       },
       { feeId: body.feeId, userId: user.id, payToken: body.payToken, isTest: body.isTest ?? false }
     )

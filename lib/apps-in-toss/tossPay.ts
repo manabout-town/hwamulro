@@ -1,5 +1,5 @@
 // 토스페이 파트너 API 순수 호출. mTLS·헤더는 fetchFn에 주입(tossLogin.ts 동일 패턴).
-import { TOSSPAY_MAKE_PAYMENT, TOSSPAY_EXECUTE_PAYMENT } from "./matchFeeConfig"
+import { TOSSPAY_MAKE_PAYMENT, TOSSPAY_EXECUTE_PAYMENT, TOSSPAY_REFUND_PAYMENT } from "./matchFeeConfig"
 
 export interface TossPayConfig {
   apiBase: string
@@ -62,4 +62,32 @@ export async function executeTossPayment(
   }
   const s = json.success
   return { stateMsg: s.stateMsg, transactionId: s.transactionId, payToken: s.payToken }
+}
+
+export interface RefundPaymentInput {
+  tossUserKey: string
+  payToken: string
+  reason: string
+  isTest: boolean
+}
+
+// 결제 환불(청약철회·자동환불). 스펙: 토스페이 파트너 API "결제 환불하기"
+// (payToken/reason/isTestPayment 기반). 문서 확인 완료.
+export async function refundTossPayment(
+  fetchFn: typeof fetch,
+  cfg: TossPayConfig,
+  input: RefundPaymentInput
+): Promise<{ refundNo: string; transactionId: string }> {
+  const res = await fetchFn(`${cfg.apiBase}${TOSSPAY_REFUND_PAYMENT}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-toss-user-key": input.tossUserKey },
+    body: JSON.stringify({ payToken: input.payToken, reason: input.reason, isTestPayment: input.isTest }),
+  })
+  if (!res.ok) throw new Error(`결제 환불 실패: ${res.status}`)
+  const json = await res.json()
+  if (json?.resultType !== "SUCCESS") {
+    throw new Error(`결제 환불 실패: ${json?.success?.errorCode ?? json?.error?.errorCode ?? "unknown"}`)
+  }
+  const s = json.success
+  return { refundNo: s.refundNo, transactionId: s.transactionId }
 }

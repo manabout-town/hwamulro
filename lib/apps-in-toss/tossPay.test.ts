@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { createTossPayment, executeTossPayment } from "./tossPay"
+import { createTossPayment, executeTossPayment, refundTossPayment } from "./tossPay"
 
 function okFetch(json: unknown): typeof fetch {
   return (async () => ({ ok: true, status: 200, json: async () => json })) as unknown as typeof fetch
@@ -41,5 +41,26 @@ describe("executeTossPayment", () => {
     await expect(executeTossPayment(failFetch(500), { apiBase: "https://x" }, {
       tossUserKey: "uk_1", payToken: "pt_1", orderNo: "o-1", isTest: true,
     })).rejects.toThrow("결제 승인 실패: 500")
+  })
+})
+
+describe("refundTossPayment", () => {
+  it("성공 시 환불결과 반환", async () => {
+    const f = okFetch({ resultType: "SUCCESS", success: { refundNo: "rf_1", transactionId: "tx_1" } })
+    const r = await refundTossPayment(f, { apiBase: "https://x" }, {
+      tossUserKey: "uk_1", payToken: "pt_1", reason: "청약철회", isTest: true,
+    })
+    expect(r).toEqual({ refundNo: "rf_1", transactionId: "tx_1" })
+  })
+  it("HTTP 실패면 에러", async () => {
+    await expect(refundTossPayment(failFetch(500), { apiBase: "https://x" }, {
+      tossUserKey: "uk_1", payToken: "pt_1", reason: "청약철회", isTest: true,
+    })).rejects.toThrow("결제 환불 실패: 500")
+  })
+  it("resultType이 SUCCESS 아니면 에러", async () => {
+    const f = okFetch({ resultType: "FAIL", error: { errorCode: "REFUND_NOT_ALLOWED" } })
+    await expect(refundTossPayment(f, { apiBase: "https://x" }, {
+      tossUserKey: "uk_1", payToken: "pt_1", reason: "청약철회", isTest: true,
+    })).rejects.toThrow("결제 환불 실패")
   })
 })
