@@ -15,6 +15,11 @@ export default function Home() {
         <Pressable style={s.cta} onPress={() => router.push(isDriver ? "/(tabs)/orders" : "/order/new")}>
           <Text style={s.ctaText}>{isDriver ? "탁송 피드 보기" : "주문 등록하기"}</Text>
         </Pressable>
+        {isDriver && (
+          <Pressable style={s.secondaryCta} onPress={() => router.push("/driver-my")}>
+            <Text style={s.secondaryCtaText}>내 활동 보기</Text>
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   )
@@ -27,4 +32,6 @@ const s = {
   desc: { fontSize: 15, color: "#6B7280", marginBottom: 16 },
   cta: { backgroundColor: "#F97316", borderRadius: 10, padding: 16, alignItems: "center" as const },
   ctaText: { color: "#fff", fontWeight: "700" as const, fontSize: 16 },
+  secondaryCta: { backgroundColor: "#FFF3E9", borderRadius: 10, padding: 16, alignItems: "center" as const },
+  secondaryCtaText: { color: "#F97316", fontWeight: "700" as const, fontSize: 16 },
 }
