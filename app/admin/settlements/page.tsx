@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { formatKRW, formatDate } from "@/lib/utils/format"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { markPayoutPaid } from "./actions"
@@ -38,10 +38,11 @@ export default async function AdminSettlementsPage({
   const { tab } = await searchParams
   const activeTab: ActiveTab = tab === "payouts" ? "payouts" : "escrow"
 
-  const supabase = await createClient()
+  // 관리자 전용(admin/layout 에서 role 검증) — 타 회원 PII 조회는 service-role 로.
+  const service = createServiceClient()
 
   const [{ data: escrows }, { data: payouts }] = await Promise.all([
-    supabase
+    service
       .from("escrow")
       .select(`
         *,
@@ -50,7 +51,7 @@ export default async function AdminSettlementsPage({
       `)
       .order("held_at", { ascending: false })
       .limit(100),
-    supabase
+    service
       .from("payouts")
       .select(`
         *,

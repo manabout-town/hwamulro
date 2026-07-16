@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { AdBanner } from "@/components/shared/AdBanner"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { RouteMap } from "@/components/shared/RouteMap"
@@ -26,9 +27,12 @@ export default async function ShipperDashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  // 본인 의뢰 목록에 매칭 기사 이름·연락처 임베드 → service-role(행은 shipper_id
+  // 본인으로 한정). 본인 프로필은 유저 세션으로 그대로 조회.
+  const service = createServiceClient()
   const [{ data: profile }, { data: orders }] = await Promise.all([
     supabase.from("users").select("*").eq("id", user!.id).single(),
-    supabase
+    service
       .from("orders")
       .select("*, matches(id, status, drivers:users!driver_id(name, phone))")
       .eq("shipper_id", user!.id)

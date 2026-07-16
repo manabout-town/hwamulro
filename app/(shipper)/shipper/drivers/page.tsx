@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { PROVINCES } from "@/lib/constants/regions"
 import Link from "next/link"
 import { Suspense } from "react"
@@ -25,10 +25,12 @@ export default async function ShipperDriversPage({
   searchParams: Promise<SearchParams>
 }) {
   const { date, origin, dest, vehicle } = await searchParams
-  const supabase = await createClient()
+  // 공개 기사 운행일정 디렉터리(기사가 직접 등록·공개). 기사 이름·연락처 임베드
+  // 를 읽으려 service-role 사용(행은 status=active 공개 일정으로 한정).
+  const service = createServiceClient()
   const today = new Date().toISOString().split("T")[0]
 
-  let query = supabase
+  let query = service
     .from("driver_schedules")
     .select(`
       *,

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { formatDate } from "@/lib/utils/format"
 import { PageHeader } from "@/components/shared/PageHeader"
 
@@ -16,8 +16,9 @@ const STATUS_STYLE: Record<string, string> = {
 }
 
 export default async function AdminUsersPage() {
-  const supabase = await createClient()
-  const { data: users } = await supabase
+  // 관리자 전용(admin/layout 에서 role 검증) — 전 회원 조회는 service-role 로.
+  const service = createServiceClient()
+  const { data: users } = await service
     .from("users")
     .select("*")
     .order("created_at", { ascending: false })

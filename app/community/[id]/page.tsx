@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { LikeButton } from "@/components/community/LikeButton"
 import { ReportButton } from "@/components/community/ReportButton"
 import { CommentSection } from "@/components/community/CommentSection"
@@ -15,7 +16,11 @@ export default async function PostDetailPage({ params }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: post } = await supabase
+  // 작성자 이름·역할 임베드를 읽으려 게시글·댓글은 service-role(로그인 회원 공개).
+  // 내 좋아요 여부는 유저 세션으로 조회.
+  const service = createServiceClient()
+
+  const { data: post } = await service
     .from("community_posts")
     .select("*, author:users!author_id(name, role)")
     .eq("id", params.id)
@@ -24,7 +29,7 @@ export default async function PostDetailPage({ params }: PageProps) {
   if (!post || (post.is_hidden && post.author_id !== user.id)) notFound()
 
   const [{ data: comments }, { data: myLike }] = await Promise.all([
-    supabase
+    service
       .from("community_comments")
       .select("id, content, created_at, author_id, author:users!author_id(name, role)")
       .eq("post_id", post.id)

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { DriverMypageClient } from "./DriverMypageClient"
 
 export default async function DriverMyPage() {
@@ -6,6 +7,9 @@ export default async function DriverMyPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  // 매칭된 화주 이름 임베드 → service-role(행은 driver_id 본인으로 한정).
+  const service = createServiceClient()
 
   const [
     { data: profile },
@@ -17,7 +21,7 @@ export default async function DriverMyPage() {
   ] = await Promise.all([
     supabase.from("users").select("*").eq("id", user!.id).single(),
     supabase.from("driver_profiles").select("*").eq("user_id", user!.id).maybeSingle(),
-    supabase
+    service
       .from("matches")
       .select("*, orders(price, origin, destination, pickup_at, status, is_urgent, shippers:users!shipper_id(name))")
       .eq("driver_id", user!.id)

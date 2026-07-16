@@ -68,7 +68,8 @@ export async function approveBid(bidId: string, orderId: string) {
     matched_at: new Date().toISOString(),
   })
   if (matchError) {
-    // BUG-010/POL-030: 동시 승인 등으로 유니크 위반(23505) 시 제약 원문 대신 친화 메시지
+    // BUG-010/POL-030: 한 오더 = 활성 매칭 1건(020 부분 유니크 인덱스 idx_matches_one_active_per_order).
+    // 동시 승인으로 다른 기사가 이미 매칭됐거나 같은 기사 중복 시 23505 → 친화 메시지.
     if ((matchError as { code?: string }).code === "23505") {
       return { error: "이미 다른 기사와 매칭된 의뢰입니다" }
     }

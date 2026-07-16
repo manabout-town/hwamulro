@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { formatKRW, formatDate, formatDateOnly } from "@/lib/utils/format"
 import { ORDER_STATUS_LABEL, ORDER_STATUS_COLOR } from "@/lib/utils/status"
 import { PageHeader } from "@/components/shared/PageHeader"
@@ -25,9 +25,10 @@ export default async function AdminOrdersPage({
   const { status } = await searchParams
   const activeStatus: StatusFilter = (status as StatusFilter) || "all"
 
-  const supabase = await createClient()
+  // 관리자 전용(admin/layout 에서 role 검증) — 타 회원 PII 조회는 service-role 로.
+  const service = createServiceClient()
 
-  let query = supabase
+  let query = service
     .from("orders")
     .select(`*, shippers:users!shipper_id(name, email), matches(count)`)
     .order("created_at", { ascending: false })
@@ -40,7 +41,7 @@ export default async function AdminOrdersPage({
   const { data: orders } = await query
 
   // Stats: always from full dataset for counts
-  const { data: allOrders } = await supabase
+  const { data: allOrders } = await service
     .from("orders")
     .select("status")
 

@@ -1,13 +1,14 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { notFound } from "next/navigation"
 import { formatKRW, formatDate } from "@/lib/utils/format"
 import { resolveDispute } from "@/app/actions/admin"
 import { Card, CardBody, CardHeader } from "@/components/ui/Card"
 
 export default async function AdminDisputeDetail({ params }: { params: { id: string } }) {
-  const supabase = await createClient()
+  // 관리자 전용(admin/layout 에서 role 검증) — 타 회원 PII 조회는 service-role 로.
+  const service = createServiceClient()
 
-  const { data: dispute } = await supabase
+  const { data: dispute } = await service
     .from("disputes")
     .select(`
       *,

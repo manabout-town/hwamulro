@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import Link from "next/link"
 
 function formatDate(dateStr: string) {
@@ -8,12 +8,14 @@ function formatDate(dateStr: string) {
 }
 
 export async function AvailableDriversBanner() {
-  const supabase = await createClient()
+  // 공개 기사 운행일정 배너(기사가 직접 등록·공개). 기사 이름·연락처 임베드를
+  // 읽으려 service-role 사용(행은 status=active 공개 일정으로 한정).
+  const service = createServiceClient()
 
   const today = new Date().toISOString().split("T")[0]
   const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
-  const { data: schedules } = await supabase
+  const { data: schedules } = await service
     .from("driver_schedules")
     .select(`
       *,

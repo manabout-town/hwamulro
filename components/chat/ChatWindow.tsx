@@ -61,14 +61,16 @@ export function ChatWindow({
           table: "chats",
           filter: `match_id=eq.${match.id}`,
         },
-        async (payload) => {
+        (payload) => {
           const newMsg = payload.new as Message
-          const { data: sender } = await supabase
-            .from("users")
-            .select("id, name, role")
-            .eq("id", newMsg.sender_id)
-            .single()
-          setMessages(prev => [...prev, { ...newMsg, sender: sender || undefined }])
+          // 1:1 채팅이라 발신자는 본인 아니면 상대. users 를 다시 조회하지 않고
+          // 이미 가진 currentUser/otherUser 로 이름을 붙인다(타인 users 조회 RLS 차단 대응).
+          const sender = newMsg.sender_id === currentUser.id
+            ? { id: currentUser.id, name: currentUser.name, role: currentUser.role }
+            : otherUser
+              ? { id: otherUser.id, name: otherUser.name, role: otherUser.role }
+              : undefined
+          setMessages(prev => [...prev, { ...newMsg, sender }])
         }
       )
       .subscribe()

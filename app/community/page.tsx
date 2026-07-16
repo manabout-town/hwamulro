@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { CategoryTabs } from "@/components/community/CategoryTabs"
 import { PostCard } from "@/components/community/PostCard"
 import { AdBanner } from "@/components/shared/AdBanner"
@@ -14,9 +14,11 @@ export default async function CommunityPage({
 }: {
   searchParams: SearchParams
 }) {
-  const supabase = await createClient()
+  // 커뮤니티 목록(로그인 회원 공개, community/layout 에서 인증 게이트). 작성자
+  // 이름·역할 임베드를 읽으려 service-role 사용.
+  const service = createServiceClient()
 
-  let query = supabase
+  let query = service
     .from("community_posts")
     .select("id, category, title, content, images, price, like_count, comment_count, created_at, author:users!author_id(name, role)")
     .eq("is_hidden", false)

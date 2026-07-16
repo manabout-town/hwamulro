@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { formatKRW, formatDate } from "@/lib/utils/format"
@@ -10,7 +11,9 @@ export default async function DriverMatchesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: matches } = await supabase
+  // 매칭된 화주 이름·연락처 임베드 → service-role(행은 driver_id 본인으로 한정).
+  const service = createServiceClient()
+  const { data: matches } = await service
     .from("matches")
     .select("*, orders(id, origin, destination, price, pickup_at, shippers:users!shipper_id(name, phone))")
     .eq("driver_id", user!.id)

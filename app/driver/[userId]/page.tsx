@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Logo } from "@/components/shared/Logo"
@@ -10,9 +10,11 @@ export default async function DriverProfilePage({
   params: Promise<{ userId: string }>
 }) {
   const { userId } = await params
-  const supabase = await createClient()
+  // 공개 기사 프로필: 기사 이름·리뷰어 이름 임베드를 읽으려 service-role 사용
+  // (공개 정보만 노출: 이름·평점·리뷰).
+  const service = createServiceClient()
 
-  const { data: profile } = await supabase
+  const { data: profile } = await service
     .from("driver_profiles")
     .select("*, users(id, name, created_at)")
     .eq("user_id", userId)
@@ -20,14 +22,14 @@ export default async function DriverProfilePage({
 
   if (!profile) notFound()
 
-  const { data: reviews } = await supabase
+  const { data: reviews } = await service
     .from("reviews")
     .select("rating, comment, created_at, reviewer:users!reviewer_id(name)")
     .eq("reviewee_id", userId)
     .order("created_at", { ascending: false })
     .limit(10)
 
-  const { count: completedCount } = await supabase
+  const { count: completedCount } = await service
     .from("matches")
     .select("*", { count: "exact", head: true })
     .eq("driver_id", userId)

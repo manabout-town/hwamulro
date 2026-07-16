@@ -39,6 +39,20 @@ export default function MatchDetail({ orderId, onBack }: { orderId: string; onBa
     setMsgs((data as Msg[]) ?? [])
   }, [])
 
+  // 게이팅된 상대 연락처: 결제 완료(또는 fee 없는 웹 매칭)일 때만 서버 라우트로 조회.
+  const fetchContact = useCallback(async (mId: string) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    const res = await fetch(`${BACKEND}/api/apps-in-toss/match-contact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ matchId: mId }),
+    })
+    if (!res.ok) return
+    const data = await res.json().catch(() => null)
+    if (data && typeof data.name === "string") setOther({ name: data.name, phone: data.phone ?? null })
+  }, [])
+
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -66,17 +80,20 @@ export default function MatchDetail({ orderId, onBack }: { orderId: string; onBa
 
       const amDriver = user.id === match.driver_id
       setIAmDriver(amDriver)
-      const otherId = amDriver ? order.shipper_id : match.driver_id
-      const { data: ou } = await supabase.from("users").select("name,phone").eq("id", otherId).single()
-      setOther(ou as { name: string; phone: string | null } ?? null)
 
       const { data: mu } = await supabase.from("users").select("phone").eq("id", user.id).single()
       setMyPhone(mu?.phone ?? null)
 
       await loadChats(match.id)
+
+      // 결제 완료(paid) 또는 fee 없는 웹 매칭일 때만 상대 연락처 로드(결제 전엔 조회 안 함)
+      const feeStatus = (feeRow as Fee | null)?.status
+      if (!feeRow || feeStatus === "paid") {
+        await fetchContact(match.id)
+      }
       setLoading(false)
     })()
-  }, [orderId, loadChats])
+  }, [orderId, loadChats, fetchContact])
 
   // 채팅 폴링(realtime publication 의존 회피)
   useEffect(() => {
@@ -127,12 +144,15 @@ export default function MatchDetail({ orderId, onBack }: { orderId: string; onBa
       if (!confirmRes.ok) { const j = await confirmRes.json().catch(() => ({})); setPayMsg(`결제 승인 실패: ${j.error ?? confirmRes.status}`); setPaying(false); return }
       setPayMsg("결제 완료 ✅ 연락처가 열렸어요")
       setFee({ ...fee, status: "paid" })
+      if (matchId) await fetchContact(matchId)
     } catch (e) {
       setPayMsg(`오류: ${e instanceof Error ? e.message : String(e)}`)
     } finally { setPaying(false) }
   }
 
   const isPaid = fee?.status === "paid"
+  // fee 가 없으면 웹 매칭(과금 대상 아님) → 잠금 없이 열림
+  const unlocked = isPaid || fee === null
 
   if (loading) return <main style={{ padding: 24 }}><p style={{ color: "#9CA3AF" }}>불러오는 중…</p></main>
 
@@ -149,7 +169,7 @@ export default function MatchDetail({ orderId, onBack }: { orderId: string; onBa
       {err && <div style={{ color: "#DC2626", fontSize: 14, marginTop: 10 }}>{err}</div>}
 
       {/* 매칭 이용료 미결제 잠금 */}
-      {other && !isPaid && (
+      {fee && !isPaid && (
         <div style={{ background: "#FFF7ED", border: "1.5px solid #FED7AA", borderRadius: 16, padding: 18, marginTop: 18 }}>
           {iAmDriver ? (
             <>
@@ -170,7 +190,7 @@ export default function MatchDetail({ orderId, onBack }: { orderId: string; onBa
       )}
 
       {/* 상대 연락처(결제 후) */}
-      {other && isPaid && (
+      {other && (
         <div style={{ background: "#fff", border: "1.5px solid #E5E7EB", borderRadius: 16, padding: 16, marginTop: 18 }}>
           <div style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 700, marginBottom: 6 }}>상대방</div>
           <div style={{ fontSize: 17, fontWeight: 800, color: "#111827" }}>{other.name}</div>
@@ -187,7 +207,7 @@ export default function MatchDetail({ orderId, onBack }: { orderId: string; onBa
       )}
 
       {/* 내 연락처 미등록 안내 */}
-      {isPaid && !myPhone && (
+      {unlocked && !myPhone && (
         <div style={{ background: "#FFF7ED", border: "1.5px solid #FED7AA", borderRadius: 16, padding: 16, marginTop: 12 }}>
           <div style={{ fontSize: 14, color: "#9A3412", fontWeight: 700, marginBottom: 8 }}>내 연락처를 등록하면 상대가 전화할 수 있어요</div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -200,7 +220,7 @@ export default function MatchDetail({ orderId, onBack }: { orderId: string; onBa
       )}
 
       {/* 채팅(결제 후) */}
-      {isPaid && (
+      {unlocked && (
       <>
       <h3 style={{ fontSize: 17, fontWeight: 800, color: "#111827", margin: "22px 0 10px" }}>채팅</h3>
       <div style={{ background: "#F9FAFB", border: "1px solid #F0F1F3", borderRadius: 16, padding: 14, minHeight: 200, maxHeight: 360, overflowY: "auto" }}>

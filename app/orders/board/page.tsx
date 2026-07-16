@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { redirect } from "next/navigation"
 import { Navbar } from "@/components/shared/Navbar"
 import { MobileNav } from "@/components/shared/MobileNav"
@@ -33,7 +34,10 @@ export default async function OrderBoardPage({
 
   const sp = await searchParams
 
-  let query = supabase
+  // 공개 오더보드: 대기 중 의뢰 + 화주 이름 임베드. 화주 이름을 임베드로 읽으려
+  // service-role 사용(행은 status=pending 로 한정 → 공개 정보만 노출).
+  const service = createServiceClient()
+  let query = service
     .from("orders")
     .select("*, shippers:users!shipper_id(name)")
     .eq("status", "pending")

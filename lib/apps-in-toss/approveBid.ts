@@ -35,6 +35,8 @@ export async function approveBidFlow(
   }
   const { error } = await deps.insertMatch(input.orderId, bid.driver_id)
   if (error) {
+    // 한 오더 = 활성 매칭 1건(020 부분 유니크 인덱스). 다른 기사가 이미 매칭됐거나
+    // 같은 기사 중복이면 23505 → 친화 메시지.
     if (error.code === "23505") throw new Error("이미 다른 기사와 매칭된 의뢰입니다")
     throw new Error(error.message)
   }

@@ -1,11 +1,12 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { formatDate } from "@/lib/utils/format"
 import { PageHeader } from "@/components/shared/PageHeader"
 import Link from "next/link"
 
 export default async function AdminDisputesPage() {
-  const supabase = await createClient()
-  const { data: disputes } = await supabase
+  // 관리자 전용(admin/layout 에서 role 검증) — 타 회원 PII 조회는 service-role 로.
+  const service = createServiceClient()
+  const { data: disputes } = await service
     .from("disputes")
     .select("*, raised_by_user:users!raised_by(name, email), matches(order_id, orders(origin, destination))")
     .order("created_at", { ascending: false })

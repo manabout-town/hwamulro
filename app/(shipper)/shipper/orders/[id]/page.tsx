@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { formatKRW, formatDate } from "@/lib/utils/format"
@@ -13,12 +14,16 @@ export default async function ShipperOrderDetail({ params }: { params: { id: str
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  // 기사 이름·연락처를 임베드로 읽으므로 order·bids 는 service-role. order 는
+  // shipper_id=본인 으로 한정해 소유 검증(미소유 시 null → notFound), bids 는 본인
+  // 의뢰 건에 대해서만 렌더된다.
+  const service = createServiceClient()
   const [{ data: order }, { data: bids }, { data: escrow }] = await Promise.all([
-    supabase.from("orders").select(`
+    service.from("orders").select(`
       *,
       matches(*, condition_reports(type), drivers:users!driver_id(*, driver_profiles(vehicle_type, vehicle_number, home_region, route_regions, rating_avg, rating_count)))
     `).eq("id", params.id).eq("shipper_id", user!.id).single(),
-    supabase.from("bids").select(`*, drivers:users!driver_id(name, phone, driver_profiles(vehicle_type, vehicle_number, home_region, route_regions, rating_avg, completed_count))`).eq("order_id", params.id).order("created_at", { ascending: true }),
+    service.from("bids").select(`*, drivers:users!driver_id(name, phone, driver_profiles(vehicle_type, vehicle_number, home_region, route_regions, rating_avg, completed_count))`).eq("order_id", params.id).order("created_at", { ascending: true }),
     supabase.from("escrow").select("*").eq("order_id", params.id).maybeSingle(),
   ])
 

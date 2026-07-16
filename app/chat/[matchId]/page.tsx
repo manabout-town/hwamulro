@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { redirect, notFound } from "next/navigation"
 import { ChatWindow } from "@/components/chat/ChatWindow"
 import type { User } from "@/lib/types"
@@ -9,7 +10,11 @@ export default async function ChatPage({ params }: { params: Promise<{ matchId: 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: match } = await supabase
+  // 상대(화주/기사) 프로필을 임베드로 읽으므로 service-role 사용. 접근 권한은
+  // 아래 isShipper/isDriver 검증 + redirect 로 직접 강제한다(RLS 대체).
+  const service = createServiceClient()
+
+  const { data: match } = await service
     .from("matches")
     .select(`
       *,
@@ -32,7 +37,7 @@ export default async function ChatPage({ params }: { params: Promise<{ matchId: 
     .eq("id", user.id)
     .single()
 
-  const { data: initialMessages } = await supabase
+  const { data: initialMessages } = await service
     .from("chats")
     .select("*, sender:users!sender_id(id, name, role)")
     .eq("match_id", matchId)

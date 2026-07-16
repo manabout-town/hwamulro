@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { formatKRW, formatDate } from "@/lib/utils/format"
 import Link from "next/link"
 import { DashboardCharts } from "@/components/admin/DashboardCharts"
@@ -14,7 +14,8 @@ function getLast14Days() {
 }
 
 export default async function AdminDashboard() {
-  const supabase = await createClient()
+  // 관리자 전용(admin/layout 에서 role 검증) — 전 회원·전 주문 집계는 service-role 로.
+  const service = createServiceClient()
 
   const since = new Date()
   since.setDate(since.getDate() - 13)
@@ -32,16 +33,16 @@ export default async function AdminDashboard() {
     { data: allUsers },
     { data: releasedEscrows },
   ] = await Promise.all([
-    supabase.from("users").select("*", { count: "exact", head: true }),
-    supabase.from("orders").select("*", { count: "exact", head: true }),
-    supabase.from("orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
-    supabase.from("orders").select("*", { count: "exact", head: true }).eq("status", "completed"),
-    supabase.from("escrow").select("total_amount, platform_fee, status"),
-    supabase.from("orders").select("*, shippers:users!shipper_id(name)").order("created_at", { ascending: false }).limit(10),
-    supabase.from("disputes").select("*, match:matches(order_id)").eq("status", "open").limit(5),
-    supabase.from("orders").select("status, price, created_at").gte("created_at", since.toISOString()),
-    supabase.from("users").select("role"),
-    supabase.from("escrow").select("platform_fee, released_at").eq("status", "released").gte("released_at", since.toISOString()),
+    service.from("users").select("*", { count: "exact", head: true }),
+    service.from("orders").select("*", { count: "exact", head: true }),
+    service.from("orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    service.from("orders").select("*", { count: "exact", head: true }).eq("status", "completed"),
+    service.from("escrow").select("total_amount, platform_fee, status"),
+    service.from("orders").select("*, shippers:users!shipper_id(name)").order("created_at", { ascending: false }).limit(10),
+    service.from("disputes").select("*, match:matches(order_id)").eq("status", "open").limit(5),
+    service.from("orders").select("status, price, created_at").gte("created_at", since.toISOString()),
+    service.from("users").select("role"),
+    service.from("escrow").select("platform_fee, released_at").eq("status", "released").gte("released_at", since.toISOString()),
   ])
 
   const totalRevenue = escrows?.filter(e => e.status === "released")

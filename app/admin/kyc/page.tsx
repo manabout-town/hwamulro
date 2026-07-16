@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { formatDate } from "@/lib/utils/format"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { approveKYC, rejectKYC } from "./actions"
@@ -41,9 +41,10 @@ export default async function AdminKYCPage({
   const { tab } = await searchParams
   const activeTab: FilterTab = (tab as FilterTab) || "all"
 
-  const supabase = await createClient()
+  // 관리자 전용(admin/layout 에서 role 검증) — 타 회원 PII 조회는 service-role 로.
+  const service = createServiceClient()
 
-  const { data: submissions } = await supabase
+  const { data: submissions } = await service
     .from("kyc_submissions")
     .select(`
       *,
