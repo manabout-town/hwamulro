@@ -1,9 +1,15 @@
-import { View, Text } from "react-native"
+import { Redirect } from "expo-router"
+import { ActivityIndicator, View } from "react-native"
+import { useAuth } from "../lib/auth"
 
 export default function Index() {
-  return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-      <Text>탁카</Text>
-    </View>
-  )
+  const { session, loading } = useAuth()
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator />
+      </View>
+    )
+  }
+  return session ? <Redirect href="/(tabs)/home" /> : <Redirect href="/(auth)/login" />
 }
