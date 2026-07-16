@@ -74,11 +74,12 @@ export async function confirmMatchFeeFlow(
 
 export interface ExpireDeps {
   getFee: (feeId: string) => Promise<{ id: string; match_id: string; status: string; expires_at: string } | null>
-  getMatchOrder: (matchId: string) => Promise<{ order_id: string } | null>
+  getMatchOrder: (matchId: string) => Promise<{ order_id: string; match_status: string; order_status: string } | null>
   cancelMatch: (matchId: string) => Promise<void>
   reopenOrder: (orderId: string) => Promise<void>
-  // status='pending'인 행만 조건부 취소 → 취소된 행 수 반환(0이면 이미 paid 등, 매칭 유지)
-  cancelFee: (feeId: string) => Promise<number>
+  // status='pending'인 행만 조건부 취소 → 취소된 행 수 반환(0이면 이미 paid 등, 매칭 유지).
+  // reason이 있으면 refund_reason에 기록(진행 후 만료 등 사유 추적용).
+  cancelFee: (feeId: string, reason?: string) => Promise<number>
   now: () => number
 }
 
@@ -91,12 +92,20 @@ export async function expireMatchFeeFlow(
   if (fee.status !== "pending") return { expired: false }
   if (new Date(fee.expires_at).getTime() >= deps.now()) return { expired: false }
 
-  // fee를 먼저 조건부 취소 → confirm과의 레이스에서 paid를 cancelled로 덮지 않음.
-  // 취소 성공(1행)일 때만 매칭 취소·주문 재오픈 진행.
+  // 매칭·오더가 이미 진행/완료됐는지 확인. 이용료만 미납이고 당사자들이 웹 채널로
+  // 운송을 시작/완료한 경우, 진행 중·완료된 오더를 pending·price 0으로 밀면 데이터가 파괴된다.
+  const mo = await deps.getMatchOrder(fee.match_id)
+  if (mo && (mo.match_status !== "accepted" || mo.order_status !== "matched")) {
+    // 진행된 건: 매칭·오더는 그대로 두고 이용료만 조건부 취소(사유 기록). 매칭은 살아있음.
+    await deps.cancelFee(fee.id, "expired_after_progress")
+    return { expired: false }
+  }
+
+  // 미진행(accepted+matched, 또는 매칭 정보 없음): fee를 먼저 조건부 취소 →
+  // confirm과의 레이스에서 paid를 cancelled로 덮지 않음. 취소 성공(1행)일 때만 매칭 취소·주문 재오픈.
   const canceled = await deps.cancelFee(fee.id)
   if (canceled === 0) return { expired: false }
 
-  const mo = await deps.getMatchOrder(fee.match_id)
   await deps.cancelMatch(fee.match_id)
   if (mo) await deps.reopenOrder(mo.order_id)
   return { expired: true }

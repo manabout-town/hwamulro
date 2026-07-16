@@ -30,16 +30,22 @@ export async function POST(request: NextRequest) {
           return (data as { id: string; match_id: string; status: string; expires_at: string } | null) ?? null
         },
         getMatchOrder: async (matchId) => {
-          const { data } = await service.from("matches").select("order_id").eq("id", matchId).single()
-          return (data as { order_id: string } | null) ?? null
+          const { data: m } = await service.from("matches").select("order_id,status").eq("id", matchId).single()
+          const match = m as { order_id: string; status: string } | null
+          if (!match) return null
+          const { data: o } = await service.from("orders").select("status").eq("id", match.order_id).single()
+          const order = o as { status: string } | null
+          return { order_id: match.order_id, match_status: match.status, order_status: order?.status ?? "" }
         },
         cancelMatch: async (matchId) => { await service.from("matches").update({ status: "cancelled" }).eq("id", matchId) },
         reopenOrder: async (orderId) => {
           await service.from("orders").update({ status: "pending", price: 0 }).eq("id", orderId)
           await service.from("bids").update({ status: "pending" }).eq("order_id", orderId).eq("status", "accepted")
         },
-        cancelFee: async (feeId) => {
-          const { data } = await service.from("match_fees").update({ status: "cancelled" }).eq("id", feeId).eq("status", "pending").select("id")
+        cancelFee: async (feeId, reason) => {
+          const update: { status: string; refund_reason?: string } = { status: "cancelled" }
+          if (reason) update.refund_reason = reason
+          const { data } = await service.from("match_fees").update(update).eq("id", feeId).eq("status", "pending").select("id")
           return (data as { id: string }[] | null)?.length ?? 0
         },
         now: () => Date.now(),

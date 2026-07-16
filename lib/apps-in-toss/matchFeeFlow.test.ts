@@ -115,7 +115,7 @@ function expireDeps(over: Partial<Parameters<typeof expireMatchFeeFlow>[0]> = {}
     calls,
     d: {
       getFee: async () => ({ id: "f1", match_id: "m1", status: "pending", expires_at: past }),
-      getMatchOrder: async () => ({ order_id: "o1" }),
+      getMatchOrder: async () => ({ order_id: "o1", match_status: "accepted", order_status: "matched" }),
       cancelMatch: async () => { calls.push("cancelMatch") },
       reopenOrder: async () => { calls.push("reopen") },
       cancelFee: async () => { calls.push("cancelFee"); return 1 },
@@ -150,6 +150,34 @@ describe("expireMatchFeeFlow", () => {
     const r = await expireMatchFeeFlow(d, { feeId: "f1" })
     expect(r).toEqual({ expired: false })
     expect(calls).toEqual(["cancelFee"])
+  })
+  it("매칭이 in_progress면 매칭·오더 미변경, fee만 취소(사유 기록)", async () => {
+    let feeReason: string | undefined = "UNSET"
+    const { d, calls } = expireDeps({
+      getMatchOrder: async () => ({ order_id: "o1", match_status: "in_progress", order_status: "in_progress" }),
+      cancelFee: async (_id: string, reason?: string) => { calls.push("cancelFee"); feeReason = reason; return 1 },
+    })
+    const r = await expireMatchFeeFlow(d, { feeId: "f1" })
+    // 매칭은 살아있으므로 expired:false, 매칭·오더는 손대지 않음
+    expect(r).toEqual({ expired: false })
+    expect(calls).toEqual(["cancelFee"])
+    expect(feeReason).toBe("expired_after_progress")
+  })
+  it("오더가 completed면 매칭·오더 미변경, fee만 취소", async () => {
+    const { d, calls } = expireDeps({
+      getMatchOrder: async () => ({ order_id: "o1", match_status: "accepted", order_status: "completed" }),
+    })
+    const r = await expireMatchFeeFlow(d, { feeId: "f1" })
+    expect(r).toEqual({ expired: false })
+    expect(calls).toEqual(["cancelFee"])
+  })
+  it("accepted+matched(미진행)면 기존대로 매칭 취소·주문 재오픈", async () => {
+    const { d, calls } = expireDeps({
+      getMatchOrder: async () => ({ order_id: "o1", match_status: "accepted", order_status: "matched" }),
+    })
+    const r = await expireMatchFeeFlow(d, { feeId: "f1" })
+    expect(r).toEqual({ expired: true })
+    expect(calls).toEqual(["cancelFee", "cancelMatch", "reopen"])
   })
 })
 
