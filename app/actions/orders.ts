@@ -26,6 +26,8 @@ export async function createOrder(formData: FormData) {
     shipper_id: user.id,
     origin,
     destination,
+    // 프로덕션 orders.cargo_type NOT NULL(마이그 012 미적용이어도 동작하도록 명시)
+    cargo_type: "차량",
     vehicle_count: vehicleCount,
     vehicle_notes: vehicleNotes || null,
     price,

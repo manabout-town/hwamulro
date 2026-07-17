@@ -40,6 +40,8 @@ export default function OrderNew() {
       shipper_id: user.id,
       origin,
       destination,
+      // 프로덕션 orders.cargo_type이 NOT NULL(마이그 012 미적용 상태에서도 동작하도록 명시)
+      cargo_type: "차량",
       vehicle_count: parseInt(vehicleCount, 10) || 1,
       vehicle_notes: vehicleNotes || null,
       price: priceNum,
