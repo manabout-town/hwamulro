@@ -21,6 +21,7 @@ export default function MatchDetail() {
   const [route, setRoute] = useState("")
   const [amount, setAmount] = useState<number | null>(null)
   const [statusKo, setStatusKo] = useState("")
+  const [orderStatus, setOrderStatus] = useState("")
   const [other, setOther] = useState<{ name: string; phone: string | null } | null>(null)
   const [matchId, setMatchId] = useState<string | null>(null)
   const [msgs, setMsgs] = useState<Msg[]>([])
@@ -62,6 +63,7 @@ export default function MatchDetail() {
       if (!order || !match) { setErr("매칭 정보를 찾을 수 없어요"); setLoading(false); return }
       setRoute(`${order.origin} → ${order.destination}`)
       setMatchId(match.id)
+      setOrderStatus(order.status)
       setStatusKo(order.status === "matched" ? "매칭됨" : order.status === "in_progress" ? "진행중" : order.status === "completed" ? "완료" : order.status)
       const { data: feeRow } = await supabase.from("match_fees").select("id,status,amount,expires_at").eq("match_id", match.id).maybeSingle()
       setFee((feeRow as Fee | null) ?? null)
@@ -143,6 +145,15 @@ export default function MatchDetail() {
           <Text style={{ fontSize: 13, fontWeight: "700", color: "#12B589", backgroundColor: "#E7F8F1", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8 }}>{statusKo}</Text>
         </View>
         {!!err && <Text style={{ color: "#DC2626", fontSize: 14, marginTop: 10 }}>{err}</Text>}
+
+        {orderStatus === "completed" && matchId && (
+          <Pressable
+            onPress={() => router.push(`/review/${matchId}`)}
+            style={{ backgroundColor: ORANGE, borderRadius: 12, padding: 16, marginTop: 18 }}
+          >
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800", textAlign: "center" }}>리뷰 작성하기</Text>
+          </Pressable>
+        )}
 
         {fee && !isPaid && (
           <View style={{ backgroundColor: "#FFF7ED", borderWidth: 1.5, borderColor: "#FED7AA", borderRadius: 16, padding: 18, marginTop: 18 }}>
