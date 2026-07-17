@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -315,14 +316,28 @@ async function uploadToStorage(
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Auth check
+    // 1. Auth check — 쿠키 인증 우선, 없으면 Bearer 토큰으로 폴백(모바일 앱)
     const supabase = await createClient()
     const {
-      data: { user },
-      error: authError,
+      data: { user: cookieUser },
     } = await supabase.auth.getUser()
 
-    if (authError || !user) {
+    let user = cookieUser
+    if (!user) {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      const token = req.headers.get('authorization')?.replace('Bearer ', '')
+      if (url && anon && token) {
+        const bearerClient = createSupabaseClient(url, anon, {
+          global: { headers: { Authorization: `Bearer ${token}` } },
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+        const { data: { user: bearerUser } } = await bearerClient.auth.getUser()
+        user = bearerUser
+      }
+    }
+
+    if (!user) {
       return NextResponse.json(
         { error: '인증이 필요합니다.' },
         { status: 401 }
