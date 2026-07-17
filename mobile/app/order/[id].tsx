@@ -66,6 +66,11 @@ export default function OrderDetail() {
                 <Text style={s.sub}>
                   희망가 {order.price.toLocaleString()}원 · {order.status === "pending" ? "입찰 대기" : order.status === "matched" ? "매칭됨" : order.status}
                 </Text>
+                {order.status === "matched" && (
+                  <Pressable onPress={() => router.push(`/match/${id}`)} style={s.matchBtn}>
+                    <Text style={s.matchBtnText}>매칭 상세 · 채팅 열기</Text>
+                  </Pressable>
+                )}
               </>
             )}
             {!loading && <Text style={s.section}>받은 입찰 {bids.length}건</Text>}
@@ -99,6 +104,8 @@ const s = {
   back: { color: "#6B7280", fontSize: 15, marginBottom: 12 },
   title: { fontSize: 22, fontWeight: "800" as const, color: "#111827" },
   sub: { color: "#6B7280", marginTop: 6, marginBottom: 8, fontSize: 15 },
+  matchBtn: { backgroundColor: ORANGE, borderRadius: 12, padding: 14, marginTop: 12 },
+  matchBtnText: { color: "#fff", fontWeight: "800" as const, textAlign: "center" as const, fontSize: 15 },
   section: { fontSize: 17, fontWeight: "800" as const, color: "#111827", marginTop: 22, marginBottom: 10 },
   empty: { color: "#9CA3AF" },
   card: { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 16, padding: 16, marginBottom: 10 },

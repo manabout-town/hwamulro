@@ -68,16 +68,25 @@ export default function DriverMy() {
         renderItem={({ item }) => {
           const o = one(item.orders)
           const isMatched = item.status === "accepted"
-          return (
-            <View style={[s.card, isMatched && s.cardMatched]}>
+          const body = (
+            <>
               <View style={s.cardRow}>
                 <Text style={s.route}>{o ? `${o.origin} → ${o.destination}` : "주문"}</Text>
                 <Text style={[s.badge, isMatched ? s.badgeMatched : s.badgeDefault]}>{BID_KO[item.status] ?? item.status}</Text>
               </View>
               {o && <Text style={s.date}>{fmtDate(o.pickup_at)}</Text>}
               <Text style={s.price}>내 입찰 {item.price.toLocaleString()}원</Text>
-            </View>
+              {isMatched && <Text style={s.matchCta}>매칭 상세 · 채팅 열기 →</Text>}
+            </>
           )
+          if (isMatched) {
+            return (
+              <Pressable style={[s.card, s.cardMatched]} onPress={() => router.push(`/match/${item.order_id}`)}>
+                {body}
+              </Pressable>
+            )
+          }
+          return <View style={s.card}>{body}</View>
         }}
       />
     </SafeAreaView>
@@ -103,4 +112,5 @@ const s = {
   badgeDefault: { color: "#6B7280", backgroundColor: "#F3F4F6" },
   date: { color: "#6B7280", fontSize: 14, marginTop: 6 },
   price: { fontSize: 18, fontWeight: "800" as const, color: ORANGE, marginTop: 8 },
+  matchCta: { fontSize: 14, fontWeight: "800" as const, color: ORANGE, marginTop: 10 },
 }
