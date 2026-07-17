@@ -11,9 +11,7 @@ function payDeps(over: Partial<Parameters<typeof payMatchFeeFlow>[0]> = {}) {
     calls,
     d: {
       getFee: async () => ({ id: "f1", driver_id: "d1", amount: 3000, status: "pending", expires_at: future, toss_order_no: null as string | null }),
-      getDriverTossKey: async () => "uk_1",
       setOrderNo: async () => { calls.push("orderNo") },
-      createPayment: async () => { calls.push("create"); return { payToken: "pt_1" } },
       now,
       ...over,
     },
@@ -21,25 +19,26 @@ function payDeps(over: Partial<Parameters<typeof payMatchFeeFlow>[0]> = {}) {
 }
 
 describe("payMatchFeeFlow", () => {
-  it("pending·미만료·본인이면 payToken 발급", async () => {
+  it("pending·미만료·본인이면 주문번호·금액 발급", async () => {
     const { d, calls } = payDeps()
-    const r = await payMatchFeeFlow(d, { feeId: "f1", userId: "d1", isTest: true })
-    expect(r).toEqual({ payToken: "pt_1" })
-    expect(calls).toContain("create")
+    const r = await payMatchFeeFlow(d, { feeId: "f1", userId: "d1" })
+    expect(r.orderNo).toMatch(/^mf_/)
+    expect(r.amount).toBe(3000)
+    expect(calls).toContain("orderNo")
   })
   it("본인 아니면 권한 에러", async () => {
     const { d } = payDeps()
-    await expect(payMatchFeeFlow(d, { feeId: "f1", userId: "other", isTest: true }))
+    await expect(payMatchFeeFlow(d, { feeId: "f1", userId: "other" }))
       .rejects.toThrow("권한이 없습니다")
   })
   it("이미 결제(paid)면 에러", async () => {
     const { d } = payDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", amount: 3000, status: "paid", expires_at: future, toss_order_no: "o" }) })
-    await expect(payMatchFeeFlow(d, { feeId: "f1", userId: "d1", isTest: true }))
+    await expect(payMatchFeeFlow(d, { feeId: "f1", userId: "d1" }))
       .rejects.toThrow("이미 결제된 매칭입니다")
   })
   it("만료면 에러", async () => {
     const { d } = payDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", amount: 3000, status: "pending", expires_at: past, toss_order_no: null }) })
-    await expect(payMatchFeeFlow(d, { feeId: "f1", userId: "d1", isTest: true }))
+    await expect(payMatchFeeFlow(d, { feeId: "f1", userId: "d1" }))
       .rejects.toThrow("매칭이 만료되었습니다")
   })
 })
@@ -49,11 +48,10 @@ function confirmDeps(over: Partial<Parameters<typeof confirmMatchFeeFlow>[0]> = 
   return {
     calls,
     d: {
-      getFee: async () => ({ id: "f1", driver_id: "d1", status: "pending", toss_order_no: "o-1" as string | null, expires_at: future }),
-      getDriverTossKey: async () => "uk_1",
-      executePayment: async () => { calls.push("execute"); return { transactionId: "tx_1", payToken: "pt_1", stateMsg: "결제 완료" } },
+      getFee: async () => ({ id: "f1", driver_id: "d1", amount: 3000, status: "pending", toss_order_no: "o-1" as string | null, expires_at: future }),
+      confirmPayment: async () => { calls.push("confirm"); return { transactionKey: "tx_1" } },
       markPaid: async () => { calls.push("paid"); return 1 },
-      refundPayment: async () => { calls.push("refund") },
+      cancelPayment: async () => { calls.push("cancel") },
       markRefunded: async () => { calls.push("markRefunded") },
       markRefundFailed: async () => { calls.push("markRefundFailed") },
       now,
@@ -65,47 +63,53 @@ function confirmDeps(over: Partial<Parameters<typeof confirmMatchFeeFlow>[0]> = 
 describe("confirmMatchFeeFlow", () => {
   it("승인 성공 시 paid 마킹", async () => {
     const { d, calls } = confirmDeps()
-    const r = await confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", payToken: "pt_1", isTest: true })
+    const r = await confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", paymentKey: "pk_1" })
     expect(r).toEqual({ ok: true })
-    expect(calls).toEqual(["execute", "paid"])
+    expect(calls).toEqual(["confirm", "paid"])
   })
   it("본인 아니면 권한 에러", async () => {
     const { d } = confirmDeps()
-    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "x", payToken: "pt_1", isTest: true }))
+    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "x", paymentKey: "pk_1" }))
       .rejects.toThrow("권한이 없습니다")
   })
   it("이미 paid면 멱등(재승인 안 함)", async () => {
-    const { d, calls } = confirmDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", status: "paid", toss_order_no: "o-1", expires_at: future }) })
-    const r = await confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", payToken: "pt_1", isTest: true })
+    const { d, calls } = confirmDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", amount: 3000, status: "paid", toss_order_no: "o-1", expires_at: future }) })
+    const r = await confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", paymentKey: "pk_1" })
     expect(r).toEqual({ ok: true })
     expect(calls).toEqual([])
   })
   it("cancelled 상태면 결제 실행 안 하고 차단", async () => {
-    const { d, calls } = confirmDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", status: "cancelled", toss_order_no: "o-1", expires_at: future }) })
-    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", payToken: "pt_1", isTest: true }))
+    const { d, calls } = confirmDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", amount: 3000, status: "cancelled", toss_order_no: "o-1", expires_at: future }) })
+    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", paymentKey: "pk_1" }))
       .rejects.toThrow("취소되었거나 만료된 매칭입니다")
     expect(calls).toEqual([])
   })
   it("만료 경과면 결제 실행 전 차단", async () => {
-    const { d, calls } = confirmDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", status: "pending", toss_order_no: "o-1", expires_at: past }) })
-    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", payToken: "pt_1", isTest: true }))
+    const { d, calls } = confirmDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", amount: 3000, status: "pending", toss_order_no: "o-1", expires_at: past }) })
+    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", paymentKey: "pk_1" }))
       .rejects.toThrow("매칭이 만료되었습니다")
     expect(calls).toEqual([])
   })
-  it("markPaid 0행(만료취소 레이스)이면 자동 환불 후 에러", async () => {
-    const { d, calls } = confirmDeps({ markPaid: async () => { calls.push("paid"); return 0 } })
-    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", payToken: "pt_1", isTest: true }))
-      .rejects.toThrow("자동 환불되었습니다")
-    expect(calls).toEqual(["execute", "paid", "refund", "markRefunded"])
+  it("금액이 3000이 아니면 승인 전 차단(서버 금액가드)", async () => {
+    const { d, calls } = confirmDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", amount: 5000, status: "pending", toss_order_no: "o-1", expires_at: future }) })
+    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", paymentKey: "pk_1" }))
+      .rejects.toThrow("결제 금액이 올바르지 않습니다")
+    expect(calls).toEqual([])
   })
-  it("markPaid 0행 + 환불 호출 실패면 수동처리 표식 후 에러", async () => {
+  it("markPaid 0행(만료취소 레이스)이면 자동 취소 후 에러", async () => {
+    const { d, calls } = confirmDeps({ markPaid: async () => { calls.push("paid"); return 0 } })
+    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", paymentKey: "pk_1" }))
+      .rejects.toThrow("자동 취소되었습니다")
+    expect(calls).toEqual(["confirm", "paid", "cancel", "markRefunded"])
+  })
+  it("markPaid 0행 + 취소 호출 실패면 수동처리 표식 후 에러", async () => {
     const { d, calls } = confirmDeps({
       markPaid: async () => { calls.push("paid"); return 0 },
-      refundPayment: async () => { throw new Error("toss down") },
+      cancelPayment: async () => { throw new Error("toss down") },
     })
-    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", payToken: "pt_1", isTest: true }))
-      .rejects.toThrow("자동 환불에 실패했습니다")
-    expect(calls).toEqual(["execute", "paid", "markRefundFailed"])
+    await expect(confirmMatchFeeFlow(d, { feeId: "f1", userId: "d1", paymentKey: "pk_1" }))
+      .rejects.toThrow("자동 취소에 실패했습니다")
+    expect(calls).toEqual(["confirm", "paid", "markRefundFailed"])
   })
 })
 
@@ -186,9 +190,8 @@ function refundDeps(over: Partial<Parameters<typeof refundMatchFeeFlow>[0]> = {}
   return {
     calls,
     d: {
-      getFee: async () => ({ id: "f1", driver_id: "d1", status: "paid", toss_payment_key: "pt_1" as string | null }),
-      getDriverTossKey: async () => "uk_1",
-      refundPayment: async () => { calls.push("refund") },
+      getFee: async () => ({ id: "f1", status: "paid", toss_payment_key: "pt_1" as string | null }),
+      cancelPayment: async () => { calls.push("cancel") },
       markRefunded: async () => { calls.push("markRefunded") },
       ...over,
     },
@@ -196,27 +199,27 @@ function refundDeps(over: Partial<Parameters<typeof refundMatchFeeFlow>[0]> = {}
 }
 
 describe("refundMatchFeeFlow", () => {
-  it("paid면 환불 실행 후 refunded 마킹", async () => {
+  it("paid면 취소 실행 후 refunded 마킹", async () => {
     const { d, calls } = refundDeps()
-    const r = await refundMatchFeeFlow(d, { feeId: "f1", reason: "청약철회", isTest: true })
+    const r = await refundMatchFeeFlow(d, { feeId: "f1", reason: "청약철회" })
     expect(r).toEqual({ ok: true })
-    expect(calls).toEqual(["refund", "markRefunded"])
+    expect(calls).toEqual(["cancel", "markRefunded"])
   })
   it("이미 refunded면 멱등(재환불 안 함)", async () => {
-    const { d, calls } = refundDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", status: "refunded", toss_payment_key: "pt_1" }) })
-    const r = await refundMatchFeeFlow(d, { feeId: "f1", reason: "청약철회", isTest: true })
+    const { d, calls } = refundDeps({ getFee: async () => ({ id: "f1", status: "refunded", toss_payment_key: "pt_1" }) })
+    const r = await refundMatchFeeFlow(d, { feeId: "f1", reason: "청약철회" })
     expect(r).toEqual({ ok: true })
     expect(calls).toEqual([])
   })
   it("paid 아니면(pending 등) 환불 거부", async () => {
-    const { d, calls } = refundDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", status: "pending", toss_payment_key: null }) })
-    await expect(refundMatchFeeFlow(d, { feeId: "f1", reason: "청약철회", isTest: true }))
+    const { d, calls } = refundDeps({ getFee: async () => ({ id: "f1", status: "pending", toss_payment_key: null }) })
+    await expect(refundMatchFeeFlow(d, { feeId: "f1", reason: "청약철회" }))
       .rejects.toThrow("결제 완료 상태만 환불할 수 있습니다")
     expect(calls).toEqual([])
   })
   it("결제 토큰 없으면 환불 불가 에러", async () => {
-    const { d } = refundDeps({ getFee: async () => ({ id: "f1", driver_id: "d1", status: "paid", toss_payment_key: null }) })
-    await expect(refundMatchFeeFlow(d, { feeId: "f1", reason: "청약철회", isTest: true }))
+    const { d } = refundDeps({ getFee: async () => ({ id: "f1", status: "paid", toss_payment_key: null }) })
+    await expect(refundMatchFeeFlow(d, { feeId: "f1", reason: "청약철회" }))
       .rejects.toThrow("결제 토큰이 없어")
   })
 })
