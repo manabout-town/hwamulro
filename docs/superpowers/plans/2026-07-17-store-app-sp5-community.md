@@ -46,10 +46,10 @@
 - Create: `mobile/app/community/[id].tsx`
 - 원본: `app/community/[id]/page.tsx`(글·댓글·좋아요 조회), `app/actions/community.ts` `createComment`/`toggleLike`
 
-- [ ] Step 1: 글 조회(020 보정) — `GET /api/community/feed?postId=` fetch(글+댓글 한 번에, 작성자 name·role 만). 404 시 not-found 인라인. 제목·작성자(name+role 뱃지)·작성일·price(있으면)·content 표시. `images` 배열 있으면 렌더(있을 때만 — 웹 파리티).
-- [ ] Step 2: 댓글 — 목록은 Step 1 응답의 comments 사용. 입력 후 `createComment` 규칙(1~1000자)대로 **유저 세션으로** `insert({ post_id, author_id: user.id, content })` → feed 재조회. 본인 댓글 삭제(선택: `delete().eq("id").eq("author_id", user.id)`).
-- [ ] Step 3: 좋아요 토글 — 원본 `toggleLike` 로직 그대로 **유저 세션으로**: `community_likes` 존재 조회(내 좋아요는 세션으로 조회 가능) → 있으면 delete, 없으면 insert(23505 시 이미 좋아요로 처리). 하트 카운트/상태 낙관적 업데이트. 신고 버튼은 **제외**.
-- [ ] Step 4: gate — 루트 tsc·vitest + mobile tsc 0 → 커밋 `feat(mobile): 커뮤니티 글보기 + 댓글·좋아요`
+- [x] Step 1: 글 조회(020 보정) — `GET /api/community/feed?postId=` fetch(글+댓글 한 번에, 작성자 name·role 만). 404 시 not-found 인라인. 제목·작성자(name+role 뱃지)·작성일·price(있으면)·content 표시. `images` 배열 있으면 렌더(있을 때만 — 웹 파리티).
+- [x] Step 2: 댓글 — 목록은 Step 1 응답의 comments 사용. 입력 후 `createComment` 규칙(1~1000자)대로 **유저 세션으로** `insert({ post_id, author_id: user.id, content })` → feed 재조회. 본인 댓글 삭제(선택: `delete().eq("id").eq("author_id", user.id)`).
+- [x] Step 3: 좋아요 토글 — 원본 `toggleLike` 로직 그대로 **유저 세션으로**: `community_likes` 존재 조회(내 좋아요는 세션으로 조회 가능) → 있으면 delete, 없으면 insert(23505 시 이미 좋아요로 처리). 하트 카운트/상태 낙관적 업데이트. 신고 버튼은 **제외**.
+- [x] Step 4: gate — 루트 tsc·vitest + mobile tsc 0 → 커밋 `feat(mobile): 커뮤니티 글보기 + 댓글·좋아요`
 
 ### Task 3: 더보기 탭 재구성 (약관·사업자정보·진입)
 
